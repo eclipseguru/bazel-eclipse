@@ -12,10 +12,6 @@ public class UnixLoginShellFinder {
     public static final String SHELL_VARIABLE_NAME = "SHELL";
 
     public Path detectLoginShell() throws IOException {
-        return detectLoginShell(System.getProperty("user.name"));
-    }
-
-    Path detectLoginShell(String username) throws IOException {
         // prefer environment variable
         var shell = System.getenv(SHELL_VARIABLE_NAME);
         if (shell != null) {
@@ -25,6 +21,12 @@ public class UnixLoginShellFinder {
             }
             return shellBinary;
         }
+
+        // fallback to /etc/passwd
+        return readLoginShellFromEtcPasswd(System.getProperty("user.name"));
+    }
+
+    Path readLoginShellFromEtcPasswd(String username) throws IOException {
         var lines = readAllLines(Path.of("/etc/passwd"));
         for (String line : lines) {
             // /etc/passwd in Linux (split by ':', 7 fields, login shell is last)
