@@ -20,9 +20,10 @@ fi
 #
 #   Note, wehn updating:
 #     1. replace the hash with the one you want to update to
-#     2. check WORKSPACE for any repo that needs updates
+#     2. check it builds (dependencies exist)
+#     3. update com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects.ASPECTS_VERSION
 #
-git_sha="1e99c447ee9af21d984df10ca085dadd37feba9b"
+git_sha="d40c9126ea4e4fd998b8245a2b5e2489f3fc8d6e"
 git_sha_short=${git_sha::6}
 
 # abort if file already exists

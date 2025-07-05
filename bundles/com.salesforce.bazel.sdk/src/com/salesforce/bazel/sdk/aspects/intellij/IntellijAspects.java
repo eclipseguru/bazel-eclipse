@@ -74,7 +74,7 @@ public class IntellijAspects {
 
     public static final String OUTPUT_GROUP_JAVA_RUNTIME_CLASSPATH = "runtime_classpath";
 
-    public static final String ASPECTS_VERSION = "1e99c4";
+    public static final String ASPECTS_VERSION = "d40c91";
     public static final Predicate<String> ASPECT_OUTPUT_FILE_PREDICATE = str -> str.endsWith(".intellij-info.txt");
 
     private static String getLanguageSuffix(LanguageClass language) {
