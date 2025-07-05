@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./bundles/com.salesforce.bazel.sdk/aspects
-          key: ${{ runner.os }}-aspects-${{ hashFiles('**/aspects/import/import-and-build.sh', '**/aspects/import/WORKSPACE') }}
+          key: ${{ runner.os }}-aspects-${{ hashFiles('**/aspects/import/import-and-build.sh', '**/aspects/import/MODULE.bazel*') }}
 
       - name: Cache  Bazel repository cache
         uses: actions/cache@v4
@@ -88,7 +88,6 @@ jobs:
           BUILD_TYPE: "S"
           BUILD_LABEL: "CI ${{ steps.time.outputs.time }} (${{ steps.branch_name.outputs.branch }})"
         with:
-          shell: bash
           run: ./mvnw --batch-mode --no-transfer-progress --strict-checksums --fail-at-end -update-snapshots --show-version --errors clean verify
           
       - name: Upload Test Results
