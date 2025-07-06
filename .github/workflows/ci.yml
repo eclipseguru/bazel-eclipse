@@ -105,11 +105,11 @@ jobs:
           path: releng/p2repository/target/repository/
           if-no-files-found: error
 
-      - name: Upload Products
+      - name: Upload JDTLS Products
         uses: actions/upload-artifact@v4
         if: success() && matrix.os == 'ubuntu-latest'
         with:
-          name: products
+          name: jdt-bazel-ls
           path: |
             releng/products/jdt-bazel-ls/target/products/*.tar.gz
             releng/products/jdt-bazel-ls/target/products/*.zip
