@@ -50,7 +50,6 @@ jobs:
       - name: Extract downloaded artifacts
         run: |
           unzip bazel-eclipse-latest/p2-repository.zip -d bazel-eclipse-latest
-          rm bazel-eclipse-latest/p2-repository.zip
 
       - name: Assemble pages folder
         run: |
