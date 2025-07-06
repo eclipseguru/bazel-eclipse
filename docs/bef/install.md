@@ -37,7 +37,7 @@ If you want to install the latest version of BEF, follow these steps to install 
 - In Eclipse, go to *Help* -> *Install New Software*
 - Click the *Add* button
 <!-- markdown-link-check-disable-next-line -->
-- For the location, enter: **https://opensource.salesforce.com/bazel-eclipse/latest/**
+- For the location, enter: **https://eclipseguru.github.io/bazel-eclipse/latest/**
 - Give the location a name, like *Bazel Eclipse*
 - In the tree control area, open the *Bazel Eclipse* node
 - Check the box next to the *Bazel Eclipse Feature* item, then hit *Next*

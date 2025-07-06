@@ -19,6 +19,7 @@ If so, please see our [Contribution Guide](../../CONTRIBUTING.md) for instructio
 
 If you have any problems using BEF, please review these pages:
 
-- [BEF Issues on GitHub](https://github.com/salesforce/bazel-eclipse/issues)
+- [BEF Issues on Salesforce GitHub](https://github.com/salesforce/bazel-eclipse/issues)
+- [BEF Issues on EclispeGuru GitHub](https://github.com/eclipseguru/bazel-eclipse/issues)
 
 If you don't see your issue listed, please file a new Issue on GitHub and we will try to help.

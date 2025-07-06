@@ -225,7 +225,7 @@
    </license>
 
    <url>
-      <discovery label="Bazel Eclipse Feature Update Site" url="https://opensource.salesforce.com/bazel-eclipse/update-site/"/>
+      <discovery label="Bazel Eclipse Feature Update Site" url="https://eclipseguru.github.io/bazel-eclipse/update-site/"/>
    </url>
 
    <plugin

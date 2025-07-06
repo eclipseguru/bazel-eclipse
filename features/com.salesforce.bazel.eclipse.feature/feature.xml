@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Main configuration file for BEF.
-
-  Normally you don't need to update anything in here. See the release.md doc for
-  steps to update the version and release BEF.
--->
 <feature
       id="com.salesforce.bazel.eclipse.feature"
       label="Bazel Eclipse Feature"
@@ -17,6 +11,7 @@
    </description>
 
    <copyright url="https://github.com/salesforce/bazel-eclipse">
+      Copyright 2025 Gunnar Wagenknecht and other. All rights reserved.
       Copyright 2018 Salesforce. All rights reserved.
       Copyright 2016 The Bazel Authors. All rights reserved.
    </copyright>

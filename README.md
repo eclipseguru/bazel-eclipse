@@ -4,8 +4,20 @@ This Git repository contains two [Bazel](http://bazel.io) IDE projects.
 They share a large amount of code and therefore live together here.
 Both provide IDE integrations for Java projects built by the [Bazel](https://bazel.build) build system.
 
-:octocat: Please do us a huge favor. If you think these projects could be useful for you, now or in the future, please hit the **Star** button at the top. That helps us advocate for more resources on this project. Thanks!
+## Project Health
 
+Originally started at Salesforce, the code was forked into this repo [eclipseguru/bazel-eclipse](https://github.com/eclipseguru/bazel-eclipse/).
+I will continue to maintain and update it at best effort.
+My main interest is the JDTLS extension.
+As much as I still like and prefer Eclipse over others, my main use shifted to VS Code/Cursor developing remotely on a workspace.
+I seldom develop on a local machine these days.
+
+Contributions and help is still very welcome!
+
+FWIW, I continue to debate with myself whether JDT is the right technology here.
+The main problem is the duplication of work between JDT and Bazel.
+If JDT would not require to generate class files and work mostly from source and an index/database it would be idea.
+Bonus poits if such an index/database could be built by a Bazel aspect and shared via Bazel's remote cache capability.
 
 ## BEF: Bazel Eclipse Feature ![BEF Logo](docs/logos/bef_logo_small.png)
 
@@ -29,7 +41,7 @@ Full documentation is available here:
 We use GitHub Discussions!
 Please file an Issue if you have an issue or would like to request a new feature.
 
-Development/contribution discussion habben in [Bazel's ide-dev Slack channel](https://bazelbuild.slack.com/archives/CM8JQCANN).
+Development/contribution discussion happen in [Bazel's ide-dev Slack channel](https://bazelbuild.slack.com/archives/CM8JQCANN).
 
 We welcome any contributions.
 Please review our [code of conduct](CODE_OF_CONDUCT.md) and our [contribution guide](CONTRIBUTING.md).

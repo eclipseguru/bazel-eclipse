@@ -2,7 +2,7 @@
 
 ### Salesforce
 
-The project is sponsored by Salesforce.
+The project was sponsored by Salesforce.
 Salesforce has opened the repository as open source as of November 20, 2019, with contributors located here:
 
 <!-- markdown-link-check-disable-next-line -->
@@ -50,13 +50,16 @@ Many Eclipse plugin metadata requirements were not honored.
 @plaird fixed some of it, but gave up and retreated to use Bazel only to run command line build/tests,
 Packaging of the actual BEF binary was done via Eclipse *Export* within the Eclipse SDK.
 
-In 2021, Gunnar Wagenknecht (@guw) used his Eclipse expertise to reimplement [the build](../dev/thebuild.md)
+In 2021, Gunnar Wagenknecht (@guw) used his Eclipse expertise to re-implement [the build](../dev/thebuild.md)
   using Maven Tycho.
 Tycho is the de facto standard for Eclipse plugins, and allowed us to switch to command line builds
   for the binaries.
 Never mind the blasphemy of building a Bazel-focused product with Maven.
 Gunnar also contributed the initial GitHub Actions CI solution, which builds the online update site
   in GitHub Pages.
+
+Over time the plug-in was re-designed and major pieces re-written by Gunnar to make it play much better with Eclipse.
+It now lives at Gunnar's Eclipse related GitHub org: [eclipseguru/bazel-eclipse/](https://github.com/eclipseguru/bazel-eclipse/).
 
 ### Aspect Implementation
 
