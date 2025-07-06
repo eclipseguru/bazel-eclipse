@@ -28,6 +28,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
+import com.google.idea.blaze.base.model.primitives.ExternalWorkspace;
 import com.google.idea.blaze.base.model.primitives.Label;
 import com.salesforce.bazel.eclipse.core.model.BazelRuleAttributes;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
@@ -50,9 +51,14 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
 
     private Stream<BazelRuleAttributes> getExternalRepositoriesByRuleClassAndFiltered(Set<String> wantedRuleKinds)
             throws CoreException {
-        return bazelWorkspace.getExternalRepositoriesByRuleClass(k -> wantedRuleKinds.contains(k))
+        return bazelWorkspace.getExternalRepositoriesByRuleClassNonBzlMod(k -> wantedRuleKinds.contains(k))
                 .filter(a -> !a.hasTag(TAG_NO_IDE))
                 .filter(a -> (a.getName() != null) && externalJarsDiscoveryFilter.matches(Path.of(a.getName())));
+    }
+
+    private Stream<ExternalWorkspace> getExternalWorkspacesFiltered() throws CoreException {
+        return bazelWorkspace.getExternalWorkspaces()
+                .filter(a -> (a.repoName() != null) && externalJarsDiscoveryFilter.matches(Path.of(a.repoName())));
     }
 
     public Collection<ClasspathEntry> query(IProgressMonitor progress) throws CoreException {
@@ -90,14 +96,20 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
     }
 
     private void queryForJavaImports(Set<ClasspathEntry> result) throws CoreException {
-        // get list of all interesting external repo rules
-        // note, some rules may do crazy stuff, just expand the set if you think we should be searching more for java_import
-        Set<String> wantedRuleKinds = Set.of("jvm_import_external", "compat_repository");
-        var externals = getExternalRepositoriesByRuleClassAndFiltered(wantedRuleKinds);
+        Stream<String> externalRepositoryNames;
+        if (getBazelWorkspace().isBzlModEnabled()) {
+            // in bzlmod we just query all external workspaces
+            externalRepositoryNames = getExternalWorkspacesFiltered().map(ExternalWorkspace::repoName);
+        } else {
+            // get list of all interesting external repo rules
+            // note, some rules may do crazy stuff, just expand the set if you think we should be searching more for java_import
+            Set<String> wantedRuleKinds = Set.of("jvm_import_external", "compat_repository");
+            externalRepositoryNames =
+                    getExternalRepositoriesByRuleClassAndFiltered(wantedRuleKinds).map(BazelRuleAttributes::getName);
+        }
 
         // get java_import details from each external
-        var setOfExternalsToQuery =
-                externals.map(BazelRuleAttributes::getName).map(s -> format("@%s//...", s)).collect(joining(" "));
+        var setOfExternalsToQuery = externalRepositoryNames.map(s -> format("@%s//...", s)).collect(joining(" "));
         if (setOfExternalsToQuery.isBlank()) {
             return;
         }
@@ -105,15 +117,14 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
         var javaImportQuery = new BazelQueryForTargetProtoCommand(
                 workspaceRoot.directory(),
                 format("kind('java_import rule', set( %s ))", setOfExternalsToQuery),
-                false,
+                true,
                 List.of(
                     "--proto:output_rule_attrs='srcjar,jars,testonly'",
                     "--noproto:rule_inputs_and_outputs",
                     "--noproto:locations",
                     "--noproto:default_values"),
                 "Querying for external java_import library information");
-        Collection<Target> javaImportTargets =
-                bazelWorkspace.getCommandExecutor().runQueryWithoutLock(javaImportQuery);
+        Collection<Target> javaImportTargets = bazelWorkspace.getCommandExecutor().runQueryWithoutLock(javaImportQuery);
 
         // parse info from each found target
         for (Target target : javaImportTargets) {
@@ -127,13 +138,21 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
     }
 
     private void queryForRulesJvmExternalJars(Set<ClasspathEntry> result) throws CoreException {
-        // get list of all external repos (
-        Set<String> wantedRuleKinds = Set.of("coursier_fetch", "pinned_coursier_fetch"); // pinned is not always available
-        var externals = getExternalRepositoriesByRuleClassAndFiltered(wantedRuleKinds);
+        Stream<String> externalRepositoryNames;
+        if (getBazelWorkspace().isBzlModEnabled()) {
+            // in bzlmod we just query all external workspaces
+            externalRepositoryNames = getExternalWorkspacesFiltered()
+                    .filter(a -> (a.repoName() != null) && a.repoName().contains("rules_jvm_external+"))
+                    .map(ExternalWorkspace::repoName);
+        } else {
+            // get list of all external repos
+            Set<String> wantedRuleKinds = Set.of("coursier_fetch", "pinned_coursier_fetch"); // pinned is not always available
+            externalRepositoryNames =
+                    getExternalRepositoriesByRuleClassAndFiltered(wantedRuleKinds).map(BazelRuleAttributes::getName);
+        }
 
         // filter out "unpinned" repositories
-        var setOfExternalsToQuery = externals.map(BazelRuleAttributes::getName)
-                .filter(s -> !s.startsWith("unpinned_"))
+        var setOfExternalsToQuery = externalRepositoryNames.filter(s -> !s.startsWith("unpinned_"))
                 .map(s -> format("@%s//...", s))
                 .collect(joining(" "));
         if (setOfExternalsToQuery.isBlank()) {
@@ -151,8 +170,7 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
                     "--noproto:locations",
                     "--noproto:default_values"),
                 "Querying for rules_jvm_external library information");
-        Collection<Target> javaImportTargets =
-                bazelWorkspace.getCommandExecutor().runQueryWithoutLock(javaImportQuery);
+        Collection<Target> javaImportTargets = bazelWorkspace.getCommandExecutor().runQueryWithoutLock(javaImportQuery);
 
         /*
          * RJE (maven_install) consumes the jar from bazel-out/mnemonic/bin directory because it's generated

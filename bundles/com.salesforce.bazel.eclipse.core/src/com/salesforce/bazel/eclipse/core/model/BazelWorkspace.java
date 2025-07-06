@@ -39,6 +39,7 @@ import org.eclipse.core.runtime.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.idea.blaze.base.model.primitives.ExternalWorkspace;
 import com.salesforce.bazel.eclipse.core.projectview.BazelProjectView;
 import com.salesforce.bazel.sdk.BazelVersion;
 import com.salesforce.bazel.sdk.command.BazelBinary;
@@ -353,27 +354,57 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
 
     /**
      * Looks up and returns a collection of external repositories matching a rule class predicate
+     * <p>
+     * This method does not work in bzlmod workspaces.
+     * </p>
      *
      * @param ruleClassPredicate
      *            the predicate to use for filtering
      * @return Stream of matching elements (never <code>null</code>)
      * @throws CoreException
      */
-    public Stream<BazelRuleAttributes> getExternalRepositoriesByRuleClass(Predicate<String> ruleClassPredicate)
+    public Stream<BazelRuleAttributes> getExternalRepositoriesByRuleClassNonBzlMod(Predicate<String> ruleClassPredicate)
             throws CoreException {
         return getInfo().getExternalRepositoriesByRuleClass(ruleClassPredicate);
     }
 
     /**
      * Looks up and returns an external repository by its simple name
+     * <p>
+     * This method does not work in bzlmod workspaces.
+     * </p>
      *
      * @param name
      *            name used in the name attribute of the external repository definition
      * @return the external repository rule (maybe <code>null</code>)
      * @throws CoreException
      */
-    public BazelRuleAttributes getExternalRepository(String name) throws CoreException {
+    public BazelRuleAttributes getExternalRepositoryNonBzlMod(String name) throws CoreException {
         return getInfo().getExternalRepository(name);
+    }
+
+    /**
+     * Returns an {@link ExternalWorkspace} by its repository name.
+     * <p>
+     * This method only works in a <code>bzlmod</code> workspaces.
+     * </p>
+     *
+     * @param repoName
+     *            the repo name
+     * @return the {@link ExternalWorkspace} or <code>null</code> if not found
+     * @throws CoreException
+     */
+    public ExternalWorkspace getExternalWorkspaceByRepoName(String repoName) throws CoreException {
+        return getInfo().getExternalWorkspaceByRepoName(repoName);
+    }
+
+    /**
+     * {@return the list of external workspaces defined in <code>bzlmod</code>}
+     *
+     * @throws CoreException
+     */
+    public Stream<ExternalWorkspace> getExternalWorkspaces() throws CoreException {
+        return getInfo().getExternalWorkspaces();
     }
 
     @Override
@@ -438,6 +469,16 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     @Override
     public int hashCode() {
         return Objects.hash(parent, root);
+    }
+
+    /**
+     * {@return <code>true</code> if the workspace is using <code>bzlmod</code> for dependency management,
+     * <code>false</code> otherwise}
+     *
+     * @throws CoreException
+     */
+    public boolean isBzlModEnabled() throws CoreException {
+        return getInfo().isBzlModEnabled();
     }
 
     /**

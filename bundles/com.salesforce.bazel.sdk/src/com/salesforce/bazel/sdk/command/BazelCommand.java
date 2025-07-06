@@ -124,7 +124,7 @@ public abstract class BazelCommand<R> {
      *             if the command execution failed in a way where no output could be produced
      */
     public R generateResult(int exitCode) throws IOException {
-        if (exitCode != 0) {
+        if (shouldFailExitCode(exitCode)) {
             throw new IOException(
                     format("Bazel %s failed with exit code %d. Please check command output.", getCommand(), exitCode));
         }
@@ -279,6 +279,17 @@ public abstract class BazelCommand<R> {
      */
     protected void setStartupArgs(String... args) {
         startupArgs = args != null ? List.of(args) : emptyList();
+    }
+
+    /**
+     * Called by {@link #generateResult(int)} to determine if the command should fail with an exception.
+     *
+     * @param exitCode
+     *            the exit code of the command
+     * @return <code>true</code> if the command should fail with an exception, <code>false</code> otherwise
+     */
+    protected boolean shouldFailExitCode(int exitCode) {
+        return exitCode != 0;
     }
 
     protected boolean supportsInjectionOfAdditionalBazelOptions() {

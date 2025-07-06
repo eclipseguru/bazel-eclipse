@@ -23,12 +23,14 @@ import static java.util.stream.Collectors.toMap;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.core.resources.IProject;
@@ -40,6 +42,7 @@ import org.eclipse.core.runtime.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.idea.blaze.base.model.primitives.ExternalWorkspace;
 import com.salesforce.bazel.eclipse.core.extensions.DetectBazelVersionAndSetBinaryJob;
 import com.salesforce.bazel.eclipse.core.model.buildfile.FunctionCall;
 import com.salesforce.bazel.eclipse.core.model.execution.BazelModelCommandExecutionService;
@@ -48,10 +51,40 @@ import com.salesforce.bazel.eclipse.core.projectview.BazelProjectView;
 import com.salesforce.bazel.sdk.BazelVersion;
 import com.salesforce.bazel.sdk.command.BazelBinary;
 import com.salesforce.bazel.sdk.command.BazelInfoCommand;
+import com.salesforce.bazel.sdk.command.BazelModDumpRepoMappingCommand;
 import com.salesforce.bazel.sdk.command.BazelQueryForTargetProtoCommand;
 import com.salesforce.bazel.sdk.command.querylight.Target;
 
 public final class BazelWorkspaceInfo extends BazelElementInfo {
+
+    private enum BazelInfoKey {
+        EXECUTION_ROOT("execution_root"),
+        RELEASE("release"),
+        REPOSITORY_CACHE("repository_cache"),
+        BAZEL_BIN("bazel-bin"),
+        BAZEL_GENFILES("bazel-genfiles"),
+        BAZEL_TESTLOGS("bazel-testlogs"),
+        COMMAND_LOG("command_log"),
+        OUTPUT_BASE("output_base"),
+        OUTPUT_PATH("output_path"),
+        STARLARK_SEMANTICS("starlark-semantics");
+
+        static List<String> allKeys() {
+            return Arrays.stream(values()).map(BazelInfoKey::key).collect(Collectors.toList());
+        }
+
+        private final String key;
+
+        BazelInfoKey(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    private static final BazelVersion UNKNOWN_BAZEL_VERSION = new BazelVersion(999, 999, 999);
 
     private static Logger LOG = LoggerFactory.getLogger(BazelWorkspaceInfo.class);
 
@@ -75,11 +108,14 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
     private IPath commandLog;
     private IPath outputBase;
     private IPath outputPath;
+    private String starlarkSemantics;
     private BazelVersion bazelVersion;
 
     private volatile Map<String, BazelRuleAttributes> externalRepositoryRuleByName;
 
     private BazelBinary bazelBinary;
+
+    private Map<String, ExternalWorkspace> externalWorkspaceByRepoName;
 
     public BazelWorkspaceInfo(IPath root, Path workspaceFile, BazelWorkspace bazelWorkspace) {
         this.root = root;
@@ -103,6 +139,10 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return bazelBin;
     }
 
+    /**
+     * {@return a specific binary configured for this workspace, or <code>null</code> if a default Bazel binary should
+     * be used}
+     */
     BazelBinary getBazelBinary() {
         return bazelBinary;
     }
@@ -154,8 +194,12 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return bazelTestlogs;
     }
 
-    public BazelVersion getBazelVersion() {
-        return bazelVersion;
+    /**
+     * {@return the Bazel version detected when loading the workspace (none <code>null</code> after the workspace was
+     * {@link #load(BazelModelCommandExecutionService) load} was called).}
+     */
+    BazelVersion getBazelVersion() {
+        return requireNonNull(bazelVersion, "not loaded");
     }
 
     public IPath getCommandLog() {
@@ -166,15 +210,15 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return excutionRoot;
     }
 
-    private String getExpectedOutput(Map<String, String> infoResult, String key) throws CoreException {
-        var value = infoResult.get(key);
+    private String getExpectedOutput(Map<String, String> infoResult, BazelInfoKey key) throws CoreException {
+        var value = infoResult.get(key.key());
         if ((value == null) || value.isBlank()) {
             throw new CoreException(
                     Status.error(
                         format(
                             "incomplete bazel info output in workspace '%s': %s missing%n%navailable info:%n%s",
                             root,
-                            key,
+                            key.key(),
                             infoResult.entrySet()
                                     .stream()
                                     .map(e -> e.getKey() + ": " + e.getValue())
@@ -184,7 +228,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return value;
     }
 
-    private IPath getExpectedOutputAsPath(Map<String, String> infoResult, String key) throws CoreException {
+    private IPath getExpectedOutputAsPath(Map<String, String> infoResult, BazelInfoKey key) throws CoreException {
         return new org.eclipse.core.runtime.Path(getExpectedOutput(infoResult, key));
     }
 
@@ -204,6 +248,24 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         }
 
         return loadExternalRepositoryRules().get(externalRepositoryName);
+    }
+
+    public ExternalWorkspace getExternalWorkspaceByRepoName(String repoName) throws CoreException {
+        var externalWorkspaceByRepoName = this.externalWorkspaceByRepoName;
+        if (externalWorkspaceByRepoName == null) {
+            externalWorkspaceByRepoName = loadExternalWorkspaceMappings();
+        }
+
+        return externalWorkspaceByRepoName.get(repoName);
+    }
+
+    public Stream<ExternalWorkspace> getExternalWorkspaces() throws CoreException {
+        var externalWorkspaceByRepoName = this.externalWorkspaceByRepoName;
+        if (externalWorkspaceByRepoName == null) {
+            externalWorkspaceByRepoName = loadExternalWorkspaceMappings();
+        }
+
+        return externalWorkspaceByRepoName.values().stream();
     }
 
     public String getName() {
@@ -256,6 +318,10 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return root;
     }
 
+    public String getStarlarkSemantics() {
+        return starlarkSemantics;
+    }
+
     public Path getWorkspaceFile() {
         return workspaceFile;
     }
@@ -272,7 +338,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         var job = new DetectBazelVersionAndSetBinaryJob(binary, false, bazelBinary -> {
             this.bazelBinary = bazelBinary;
         }, () -> {
-            var defaultVersion = new BazelVersion(999, 999, 999);
+            var defaultVersion = UNKNOWN_BAZEL_VERSION;
             LOG.error(
                 "Unable to detect version for Bazel binary '{}' (configured via .bazelproject file) - defaulting to '{}'",
                 binary,
@@ -286,6 +352,42 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         } catch (InterruptedException e) {
             throw new OperationCanceledException("Interrupted waiting for Bazel binary version detection to happen");
         }
+    }
+
+    public boolean isBzlModEnabled() {
+        // validate that bzlmod is enabled (technically this validates that the --enable_bzlmod is not
+        // changed from the default `true` aka set to false)
+        // source: https://github.com/bazelbuild/intellij/blob/d40c9126ea4e4fd998b8245a2b5e2489f3fc8d6e/base/src/com/google/idea/blaze/base/model/ExternalWorkspaceDataProvider.java#L81-L88
+        var starLarkSemantics = starlarkSemantics;
+
+        if ((starLarkSemantics == null) || starLarkSemantics.isEmpty()) {
+            // if starlark-semantics is not set, we assume that Bazel is too old to support bzlmod
+            return false;
+        }
+
+        return !starLarkSemantics.contains("enable_bzlmod=false");
+    }
+
+    public boolean isWorkspaceFileSupportEnabled() {
+        // check starlark-semantics for "enable_workspace=true"
+        var starLarkSemantics = starlarkSemantics;
+
+        // in Bazel 8+ the default was flipped to false
+        var isBazel8OrAbove = getBazelVersion().isAtLeast(8, 0, 0);
+
+        if ((starLarkSemantics == null) || starLarkSemantics.isEmpty()) {
+            // if starlark-semantics is not set, we decide based on the Bazel version
+            return !isBazel8OrAbove;
+        }
+
+        // starlark-semantics will contain the opposite of the default value
+        // in Bazel 8+ we check for "enable_workspace=true" to enable it
+        if (isBazel8OrAbove) {
+            return starLarkSemantics.contains("enable_workspace=true");
+        }
+
+        // in Bazel < 8 we check for "enable_workspace=false" to check it's not disables.
+        return !starLarkSemantics.contains("enable_workspace=false");
     }
 
     public void load(BazelModelCommandExecutionService executionService) throws CoreException {
@@ -309,7 +411,8 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
             // we use the BazelModelCommandExecutionService directly because there is a cycle dependency between
             // BazelModelCommandExecutor and BazelWorkspace#getBazelBinary
 
-            var workspaceCommand = new BazelInfoCommand(workspaceRoot, "Reading workspace info");
+            var workspaceCommand =
+                    new BazelInfoCommand(workspaceRoot, "Reading workspace info", BazelInfoKey.allKeys());
             workspaceCommand.setBazelBinary(getBazelBinary());
 
             var infoResult = executionService.executeOutsideWorkspaceLockAsync(workspaceCommand, bazelWorkspace).get();
@@ -324,19 +427,23 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
 
             }
 
-            excutionRoot = getExpectedOutputAsPath(infoResult, "execution_root");
-            release = getExpectedOutput(infoResult, "release");
-            repositoryCache = getExpectedOutputAsPath(infoResult, "repository_cache");
-            bazelBin = getExpectedOutputAsPath(infoResult, "bazel-bin");
-            bazelGenfiles = getExpectedOutputAsPath(infoResult, "bazel-genfiles");
-            bazelTestlogs = getExpectedOutputAsPath(infoResult, "bazel-testlogs");
-            commandLog = getExpectedOutputAsPath(infoResult, "command_log");
-            outputBase = getExpectedOutputAsPath(infoResult, "output_base");
-            outputPath = getExpectedOutputAsPath(infoResult, "output_path");
+            excutionRoot = getExpectedOutputAsPath(infoResult, BazelInfoKey.EXECUTION_ROOT);
+            release = getExpectedOutput(infoResult, BazelInfoKey.RELEASE);
+            repositoryCache = getExpectedOutputAsPath(infoResult, BazelInfoKey.REPOSITORY_CACHE);
+            bazelBin = getExpectedOutputAsPath(infoResult, BazelInfoKey.BAZEL_BIN);
+            bazelGenfiles = getExpectedOutputAsPath(infoResult, BazelInfoKey.BAZEL_GENFILES);
+            bazelTestlogs = getExpectedOutputAsPath(infoResult, BazelInfoKey.BAZEL_TESTLOGS);
+            commandLog = getExpectedOutputAsPath(infoResult, BazelInfoKey.COMMAND_LOG);
+            outputBase = getExpectedOutputAsPath(infoResult, BazelInfoKey.OUTPUT_BASE);
+            outputPath = getExpectedOutputAsPath(infoResult, BazelInfoKey.OUTPUT_PATH);
+            starlarkSemantics = getExpectedOutput(infoResult, BazelInfoKey.STARLARK_SEMANTICS);
 
             if (release.startsWith(RELEASE_VERSION_PREFIX)) {
                 // parse the version from bazel info instead of using BazelBinary (if available)
                 bazelVersion = BazelVersion.parseVersion(release.substring(RELEASE_VERSION_PREFIX.length()));
+            } else {
+                // ensure it's not null
+                bazelVersion = UNKNOWN_BAZEL_VERSION;
             }
 
             // in bzlmod the execution root segment seems to be broken, it's always _main (https://github.com/bazelbuild/bazel/issues/2317#issuecomment-1849740317)
@@ -401,6 +508,11 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
             return externalRepositoryRuleByName;
         }
 
+        if (isBzlModEnabled()) {
+            throw new IllegalStateException(
+                    "External repository rules are not supported in bzlmod workspaces. Please use the bzlmod repository mappings instead.");
+        }
+
         var workspaceRoot = getWorkspaceFile().getParent();
         var allExternalQuery = new BazelQueryForTargetProtoCommand(
                 workspaceRoot,
@@ -408,12 +520,29 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
                 false,
                 List.of("--noproto:rule_inputs_and_outputs", "--noproto:locations", "--noproto:default_values"),
                 "Querying for external repositories");
-        var externalRepositories = bazelWorkspace.getCommandExecutor().runQueryWithoutLock(allExternalQuery);
 
-        return externalRepositoryRuleByName = externalRepositories.stream()
+        var externalTargets = bazelWorkspace.getCommandExecutor().runQueryWithoutLock(allExternalQuery);
+
+        return externalRepositoryRuleByName = externalTargets.stream()
                 .filter(Target::hasRule)
                 .map(Target::rule)
                 .map(BazelRuleAttributes::new)
                 .collect(toMap(BazelRuleAttributes::getName, Function.identity())); // index by the "name" attribute
+    }
+
+    private synchronized Map<String, ExternalWorkspace> loadExternalWorkspaceMappings() throws CoreException {
+        if (externalWorkspaceByRepoName != null) {
+            return externalWorkspaceByRepoName;
+        }
+
+        var workspaceRoot = getWorkspaceFile().getParent();
+
+        var repoMappingCommand =
+                new BazelModDumpRepoMappingCommand(workspaceRoot, "", "Reading bzlmod repository mappings");
+        List<ExternalWorkspace> externalWorkspaces =
+                bazelWorkspace.getCommandExecutor().runQueryWithoutLock(repoMappingCommand);
+
+        return externalWorkspaceByRepoName =
+                externalWorkspaces.stream().collect(toMap(ExternalWorkspace::repoName, Function.identity())); // index by the "repo name" attribute
     }
 }

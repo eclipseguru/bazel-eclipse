@@ -3,6 +3,7 @@ package com.salesforce.bazel.sdk.command;
 import static java.io.File.createTempFile;
 import static java.lang.String.format;
 import static java.nio.file.Files.readAllLines;
+import static java.util.Objects.requireNonNull;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,6 +21,11 @@ public class BazelInfoCommand extends BazelCommand<Map<String, String>> {
 
     public BazelInfoCommand(Path workspaceRoot, String purpose) {
         super("info", workspaceRoot, purpose);
+    }
+
+    public BazelInfoCommand(Path workspaceRoot, String string, List<String> keys) {
+        this(workspaceRoot, string);
+        setCommandArgs(requireNonNull(keys, "keys"));
     }
 
     @Override

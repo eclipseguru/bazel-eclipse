@@ -67,7 +67,7 @@ public class ShellUtil {
             if (result.length() > 0) {
                 result.append(' ');
             }
-            var quoteArg = (arg.indexOf(' ') > -1) && !arg.startsWith("\\\"");
+            var quoteArg = ((arg.indexOf(' ') > -1) && !arg.startsWith("\\\"")) || (arg.isBlank());
             if (quoteArg) {
                 result.append("\"");
             }

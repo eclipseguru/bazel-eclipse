@@ -20,7 +20,7 @@ import com.salesforce.bazel.sdk.BazelVersion;
  * @param <R>
  *            the query output result
  */
-public abstract class BazelQueryCommand<R> extends BazelCommand<R> {
+public abstract class BazelQueryCommand<R> extends BazelReadOnlyCommand<R> {
 
     protected enum QueryCommand {
         query, cquery
@@ -73,5 +73,14 @@ public abstract class BazelQueryCommand<R> extends BazelCommand<R> {
         }
 
         return commandLine;
+    }
+
+    @Override
+    protected boolean shouldFailExitCode(int exitCode) {
+        if (keepGoing && (exitCode == 3)) {
+            // if --keep_going is set, we do not fail on exit code 3
+            return false;
+        }
+        return super.shouldFailExitCode(exitCode);
     }
 }

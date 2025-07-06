@@ -24,7 +24,7 @@ import com.salesforce.bazel.eclipse.core.model.execution.BazelModelCommandExecut
 import com.salesforce.bazel.sdk.command.BazelBinary;
 import com.salesforce.bazel.sdk.command.BazelBuildCommand;
 import com.salesforce.bazel.sdk.command.BazelCommand;
-import com.salesforce.bazel.sdk.command.BazelQueryCommand;
+import com.salesforce.bazel.sdk.command.BazelReadOnlyCommand;
 
 /**
  * A helper for executing commands with the {@link BazelModelCommandExecutionService} in the context of a
@@ -139,7 +139,7 @@ public class BazelElementCommandExecutor {
      *      <code>executeOutsideWorkspaceLockAsync</code> for execution and locking semantics
      * @throws CoreException
      */
-    public <R> R runQueryWithoutLock(BazelQueryCommand<R> command) throws CoreException {
+    public <R> R runQueryWithoutLock(BazelReadOnlyCommand<R> command) throws CoreException {
         configureCommand(command, executionContext.getBazelWorkspace());
         Future<R> future = getExecutionService().executeOutsideWorkspaceLockAsync(command, executionContext);
         try {

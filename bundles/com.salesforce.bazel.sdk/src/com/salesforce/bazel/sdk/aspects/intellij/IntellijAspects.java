@@ -259,7 +259,7 @@ public class IntellijAspects {
             "isPythonEnabled",
             "false", // if true requires rules_python repo to exist
             "use_get_tool_for_action", // cc_info.bzl
-            "true" // https://github.com/bazelbuild/intellij/blob/d40c9126ea4e4fd998b8245a2b5e2489f3fc8d6e/base/src/com/google/idea/blaze/base/sync/aspects/storage/CcAspectTemplateWriter.kt#L33
+            "True" // https://github.com/bazelbuild/intellij/blob/d40c9126ea4e4fd998b8245a2b5e2489f3fc8d6e/base/src/com/google/idea/blaze/base/sync/aspects/storage/CcAspectTemplateWriter.kt#L33
         );
     }
 

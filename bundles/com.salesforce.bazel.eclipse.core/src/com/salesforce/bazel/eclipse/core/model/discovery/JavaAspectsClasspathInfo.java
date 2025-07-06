@@ -437,6 +437,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
     }
 
     private BazelWorkspace findExternalWorkspace(Label label) throws CoreException {
+
         var externalWorkspaceName = label.externalWorkspaceName();
         if (externalWorkspaceName.startsWith("@")) {
             // we have a canonical repository name; try to see if it links to workspace in the IDE
@@ -463,7 +464,9 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         }
 
         // lookup and see if it maps to 'local_repository'
-        var externalRepository = bazelWorkspace.getExternalRepository(externalWorkspaceName);
+        // FIXME: we need to handle bzlmod as well, maybe we can use show_repo here to check if this is a local override?
+        var externalRepository = bazelWorkspace.isBzlModEnabled() ? null
+                : bazelWorkspace.getExternalRepositoryNonBzlMod(externalWorkspaceName);
         if (externalRepository != null) {
             switch (externalRepository.getRuleClass()) {
                 case "local_repository": {
