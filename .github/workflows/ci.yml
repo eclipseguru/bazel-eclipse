@@ -115,6 +115,16 @@ jobs:
             releng/products/jdt-bazel-ls/target/products/*.zip
           if-no-files-found: error
             
+      - name: Upload SCIPLS Products
+        uses: actions/upload-artifact@v4
+        if: success() && matrix.os == 'ubuntu-latest'
+        with:
+          name: scip-bazel-ls
+          path: |
+            releng/products/scip-bazel-ls/target/products/*.tar.gz
+            releng/products/scip-bazel-ls/target/products/*.zip
+          if-no-files-found: error
+
   event_file:
     name: "Event File" 
     runs-on: ubuntu-latest
