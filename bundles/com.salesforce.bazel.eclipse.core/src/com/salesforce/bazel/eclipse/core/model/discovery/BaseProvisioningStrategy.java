@@ -1073,7 +1073,22 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
                 "Querying for Java toolchain information");
         var result = workspace.getCommandExecutor().runQueryWithoutLock(command).trim();
         try {
-            var properties = new Properties();
+            var properties = new Properties() {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                public synchronized Object put(Object key, Object value) {
+                    if (containsKey(key)) {
+                        // https://github.com/bazelbuild/bazel/issues/26487
+                        LOG.warn(
+                            "Ignoring duplicate key '{}' found in bazel cquery result. This is a known issue with bazel cquery. Java toolchains might be incorrect.\n{}",
+                            key,
+                            result);
+                        return get(key);
+                    }
+                    return super.put(key, value);
+                }
+            };
             properties.load(new StringReader(result));
 
             javaToolchainSourceVersion = requireNonNull(
