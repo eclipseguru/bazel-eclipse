@@ -145,6 +145,14 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
      */
     protected static final String PROJECT_NAME_SEPARATOR_CHAR = "project_name_separator_char";
 
+    /**
+     * Default exclusions for source directories
+     */
+    public static final IPath[] EXCLUDE_BAZEL_ARTIFACTS = {
+            IPath.forPosix("**/BUILD*"),
+            IPath.forPosix("**/MODULE*"),
+            IPath.forPosix("**/WORKSPACE*") };
+
     private static Logger LOG = LoggerFactory.getLogger(BaseProvisioningStrategy.class);
 
     /**
@@ -485,7 +493,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
                 JavaCore.newSourceEntry(
                     virtualSourceFolder.getFullPath(),
                     null /* include all */,
-                    null /* exclude nothing */,
+                    EXCLUDE_BAZEL_ARTIFACTS,
                     outputLocation,
                     javaSourceInfo.shouldDisableOptionalCompileProblemsForSourceFilesWithoutCommonRoot()
                             ? classpathAttributesForIgnoringOptionalCompileProblems : classpathAttributes));
@@ -513,7 +521,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
                             JavaCore.newSourceEntry(
                                 srcjarFolder.getFullPath(),
                                 null,
-                                null,
+                                EXCLUDE_BAZEL_ARTIFACTS,
                                 outputLocation,
                                 classpathAttributesForIgnoringOptionalCompileProblems));
                     }
@@ -526,6 +534,9 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
                 var sourceFolder = dir.isEmpty() ? virtualSourceFolder : project.getProject().getFolder(dir);
                 var inclusionPatterns = javaSourceInfo.getInclusionPatternsForSourceDirectory(dir);
                 var exclusionPatterns = javaSourceInfo.getExclutionPatternsForSourceDirectory(dir);
+                if ((exclusionPatterns == null) || (exclusionPatterns.length == 0)) {
+                    exclusionPatterns = EXCLUDE_BAZEL_ARTIFACTS;
+                }
                 var existingEntry =
                         rawClasspath.stream().anyMatch(entry -> entry.getPath().equals(sourceFolder.getFullPath()));
                 var isNested = rawClasspath.stream()
@@ -1757,7 +1768,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
                 monitor);
 
             linkSourceFilesWithoutCommonRoot(
-                javaInfo.getSourceInfo(),
+                javaInfo.getTestSourceInfo(),
                 getFileSystemMapper().getVirtualSourceFolderForTests(project),
                 monitor);
             linkSourceDirectories(
