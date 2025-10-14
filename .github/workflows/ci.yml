@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./bundles/com.salesforce.bazel.sdk/aspects/aspects*.zip
-          key: intllij-aspects-${{ hashFiles('**/aspects/import/import-and-build.sh', '**/aspects/import/MODULE.bazel*') }}
+          key: ${{ runner.os }}-aspects-${{ hashFiles('**/aspects/import/import-and-build.sh', '**/aspects/import/MODULE.bazel*') }}
 
       - name: Cache  Bazel repository cache
         uses: actions/cache@v4
