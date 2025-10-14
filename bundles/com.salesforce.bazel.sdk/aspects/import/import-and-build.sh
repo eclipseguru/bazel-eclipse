@@ -23,7 +23,7 @@ fi
 #     2. check it builds (dependencies exist)
 #     3. update com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects.ASPECTS_VERSION
 #
-git_sha="d40c9126ea4e4fd998b8245a2b5e2489f3fc8d6e"
+git_sha="3f0edce7702ced14ed26c026b79ae1cd26467749"
 git_sha_short=${git_sha::6}
 
 # abort if file already exists
