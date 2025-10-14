@@ -119,6 +119,8 @@ import com.salesforce.bazel.sdk.model.BazelLabel;
  */
 public abstract class BaseProvisioningStrategy implements TargetProvisioningStrategy {
 
+    private static final char DOT = '.';
+
     private static final String FILE_EXTENSION_DOT_PREFS = ".prefs";
 
     private static final String JRE_SYSTEM_LIBRARY = "jre_system_library";
@@ -136,6 +138,12 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
 
     private static final IPath[] EXCLUDE_JAVA_SOURCE = {
             IPath.forPosix("**/*.java") };
+
+    /**
+     * Target provisioning setting key {@value #PROJECT_NAME_SEPARATOR_CHAR} to configure the character used to replace
+     * `/` in package paths
+     */
+    protected static final String PROJECT_NAME_SEPARATOR_CHAR = "project_name_separator_char";
 
     private static Logger LOG = LoggerFactory.getLogger(BaseProvisioningStrategy.class);
 
@@ -1361,6 +1369,12 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
         return (IEclipsePreferences) Platform.getPreferencesService().getRootNode().node(InstanceScope.SCOPE);
     }
 
+    protected String getProjectNameFriendlyPackagePath(BazelPackage bazelPackage) throws CoreException {
+        return bazelPackage.getLabel()
+                .getPackagePath()
+                .replace('/', getTargetProvisioningSettingAsChar(bazelPackage, PROJECT_NAME_SEPARATOR_CHAR, DOT));
+    }
+
     /**
      * Calls and returns {@link JavaProjectInfo#analyzeProjectRecommendations(boolean, IProgressMonitor)} with
      * recommended defaults.
@@ -1379,6 +1393,36 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
     protected IStatus getProjectRecommendations(JavaProjectInfo javaInfo, IProgressMonitor monitor)
             throws CoreException {
         return javaInfo.analyzeProjectRecommendations(true, monitor);
+    }
+
+    protected String getTargetProvisioningSetting(BazelElement<?, ?> bazelElement, String key, String defaultValue)
+            throws CoreException {
+        var value = bazelElement.getBazelWorkspace().getBazelProjectView().targetProvisioningSettings().get(key);
+        if ((value == null) || value.isBlank()) {
+            return defaultValue;
+        }
+
+        return value;
+    }
+
+    protected char getTargetProvisioningSettingAsChar(BazelElement<?, ?> bazelElement, String key, char defaultValue)
+            throws CoreException {
+        var separatorChar =
+                bazelElement.getBazelWorkspace().getBazelProjectView().targetProvisioningSettings().get(key);
+        if (separatorChar == null) {
+            return DOT;
+        }
+
+        separatorChar = separatorChar.trim();
+        if (separatorChar.length() != 1) {
+            throw new CoreException(
+                    Status.error(
+                        format(
+                            "Invalid '%s' setting in 'target_provisioning_settings' of project view: expected a single character!",
+                            key)));
+        }
+
+        return separatorChar.charAt(0);
     }
 
     /**

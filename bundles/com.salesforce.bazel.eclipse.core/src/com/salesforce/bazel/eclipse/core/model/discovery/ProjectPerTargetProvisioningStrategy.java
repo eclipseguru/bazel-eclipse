@@ -52,6 +52,8 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
 
     public static final String STRATEGY_NAME = "project-per-target";
 
+    private static final String PROJECT_NAME_FORMAT = "project_name_format";
+
     @Override
     public Map<BazelProject, CompileAndRuntimeClasspath> computeClasspaths(Collection<BazelProject> bazelProjects,
             BazelWorkspace workspace, BazelClasspathScope scope, IProgressMonitor progress) throws CoreException {
@@ -236,9 +238,11 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
             return target.getBazelProject();
         }
 
-        var label = target.getLabel();
-        var projectName =
-                format("%s:%s", label.getPackagePath().replace('/', '.'), label.getTargetName().replace('/', '.'));
+        var packagePath = getProjectNameFriendlyPackagePath(target.getBazelPackage());
+        var projectName = format(
+            getTargetProvisioningSetting(target, PROJECT_NAME_FORMAT, "%s - %s"),
+            packagePath,
+            target.getTargetName().replace('/', '.'));
         var projectLocation = getFileSystemMapper().getProjectsArea().append(projectName);
 
         createProjectForElement(projectName, projectLocation, target, monitor);
