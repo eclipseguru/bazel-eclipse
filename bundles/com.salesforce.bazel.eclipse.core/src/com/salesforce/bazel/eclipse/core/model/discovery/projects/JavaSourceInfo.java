@@ -83,6 +83,9 @@ public class JavaSourceInfo {
      */
     private Map<IPath, Object> sourceDirectoriesWithFilesOrGlobs;
 
+    private final Map<Path, Set<JavaSourceEntry>> declaredEntries = new HashMap<>();
+    private final Map<Path, Set<Path>> foundJavaEntries = new HashMap<>();
+
     public JavaSourceInfo(Map<Entry, EntrySettings> srcs, BazelPackage bazelPackage) {
         this.srcs = srcs;
         bazelPackageLocation = bazelPackage.getLocation();
@@ -313,22 +316,28 @@ public class JavaSourceInfo {
                 }
 
                 var entryParentLocation = bazelPackageLocation.append(potentialSourceRoot).toPath();
-                try {
-                    // when there are declared Java files, expect them to match
-                    var declaredJavaFilesInFolder = entry.getValue().size();
-                    if (declaredJavaFilesInFolder > 0) {
-                        var foundJavaFiles = findJavaFilesNoneRecursive(entryParentLocation);
-                        var javaFilesInParent = foundJavaFiles.size();
-                        if (javaFilesInParent != declaredJavaFilesInFolder) {
-                            if (potentialSplitPackageOrSubsetFolders.add(potentialSourceRoot)) {
-                                reportDeltaAsProblem(result, entryParentLocation, entry.getValue(), foundJavaFiles);
-                            }
-                            continue; // continue with next so we capture all possible warnings (we could also abort, though)
-                        }
+                if (!entry.getValue().isEmpty()) {
+                    var declared = declaredEntries.get(entryParentLocation);
+                    if (declared == null) {
+                        declared = new HashSet<>();
+                        declaredEntries.put(entryParentLocation, declared);
                     }
-                } catch (IOException e) {
-                    throw new CoreException(
-                            Status.error(format("Error searching files in '%s'", entryParentLocation), e));
+                    declared.addAll((Collection<? extends JavaSourceEntry>) entry.getValue());
+                    List<Path> javaEntries;
+                    try {
+                        javaEntries = findJavaFilesNoneRecursive(entryParentLocation);
+                    } catch (IOException e) {
+                        throw new CoreException(
+                                Status.error(format("Error searching files in '%s'", entryParentLocation), e));
+                    }
+                    if (!javaEntries.isEmpty()) {
+                        var found = foundJavaEntries.get(entryParentLocation);
+                        if (found == null) {
+                            found = new HashSet<>();
+                            foundJavaEntries.put(entryParentLocation, found);
+                        }
+                        found.addAll(javaEntries);
+                    }
                 }
             }
 
@@ -352,19 +361,30 @@ public class JavaSourceInfo {
                 }
 
                 var potentialSourceRootPath = bazelPackageLocation.append(potentialSourceRoot).toPath();
-                try {
-                    var registeredFiles = ((List<?>) potentialSourceRootAndSourceEntries.getValue()).size();
-                    var foundJavaFiles = findJavaFilesRecursive(potentialSourceRootPath);
-                    var foundJavaFilesInSourceRoot = foundJavaFiles.size();
-                    if ((registeredFiles != foundJavaFilesInSourceRoot)
-                            && potentialSplitPackageOrSubsetFolders.add(potentialSourceRoot)) {
-                        List<? super JavaSourceEntry> declaredEntries =
-                                (List<? super JavaSourceEntry>) potentialSourceRootAndSourceEntries.getValue();
-                        reportDeltaAsProblem(result, potentialSourceRootPath, declaredEntries, foundJavaFiles);
+                var entries = ((List<?>) potentialSourceRootAndSourceEntries.getValue());
+                // entries = entries.stream().filter(GlobEntry.class::isInstance).collect(Collectors.toList());
+                if (!entries.isEmpty()) {
+                    var declared = declaredEntries.get(potentialSourceRootPath);
+                    if (declared == null) {
+                        declared = new HashSet<>();
+                        declaredEntries.put(potentialSourceRootPath, declared);
                     }
-                } catch (IOException e) {
-                    throw new CoreException(
-                            Status.error(format("Error searching files in '%s'", potentialSourceRootPath), e));
+                    declared.addAll((Collection<? extends JavaSourceEntry>) entries);
+                    List<Path> javaEntries;
+                    try {
+                        javaEntries = findJavaFilesRecursive(potentialSourceRootPath);
+                    } catch (IOException e) {
+                        throw new CoreException(
+                                Status.error(format("Error searching files in '%s'", potentialSourceRootPath), e));
+                    }
+                    if (!javaEntries.isEmpty()) {
+                        var found = foundJavaEntries.get(potentialSourceRootPath);
+                        if (found == null) {
+                            found = new HashSet<>();
+                            foundJavaEntries.put(potentialSourceRootPath, found);
+                        }
+                        found.addAll(javaEntries);
+                    }
                 }
             }
         }
@@ -551,6 +571,10 @@ public class JavaSourceInfo {
         return bazelPackageLocation;
     }
 
+    public Map<Path, Set<JavaSourceEntry>> getDeclaredEntries() {
+        return declaredEntries;
+    }
+
     public Collection<IPath> getDetectedJavaPackages() {
         return getSourceDirectoriesWithFilesOrGlobs().values()
                 .stream()
@@ -605,6 +629,13 @@ public class JavaSourceInfo {
 
         // exclude nothing for none-globs
         return null;
+    }
+
+    /**
+     * @return the foundJavaEntries
+     */
+    public Map<Path, Set<Path>> getFoundJavaEntries() {
+        return foundJavaEntries;
     }
 
     /**

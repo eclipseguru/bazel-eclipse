@@ -680,6 +680,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
         }
 
         analyzeProjectInfo(project, javaInfo, monitor);
+        project.setJavaProjectInfo(javaInfo);
 
         return javaInfo;
     }

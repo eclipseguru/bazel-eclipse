@@ -1,16 +1,24 @@
 package com.salesforce.bazel.eclipse.core.model.discovery;
 
 import static java.lang.String.format;
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.eclipse.core.runtime.SubMonitor.SUPPRESS_ALL_LABELS;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -26,6 +34,7 @@ import com.salesforce.bazel.eclipse.core.model.BazelProject;
 import com.salesforce.bazel.eclipse.core.model.BazelTarget;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspaceBlazeInfo;
+import com.salesforce.bazel.eclipse.core.model.discovery.projects.JavaSourceEntry;
 import com.salesforce.bazel.eclipse.core.util.trace.TracingSubMonitor;
 import com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects;
 import com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects.OutputGroup;
@@ -150,12 +159,74 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
         List<BazelProject> result = new ArrayList<>();
         for (BazelTarget target : targets) {
             monitor.subTask(target.getLabel().toString());
+            monitor.checkCanceled();
 
             // provision project
             var project = provisionProjectForTarget(target, monitor);
             if (project != null) {
                 result.add(project);
             }
+        }
+        Map<Path, Set<JavaSourceEntry>> declaredEntries = new HashMap<>();
+        Map<Path, BazelProject> projectMap = new HashMap<>();
+        Map<Path, Set<Path>> foundJavaFiles = new HashMap<>();
+        for (BazelProject project : result) {
+            monitor.subTask(project.getName());
+            monitor.checkCanceled();
+
+            var javaProjectInfo = project.getJavaProjectInfo();
+            var javaSourceInfo = javaProjectInfo.getSourceInfo();
+            var declared = javaSourceInfo.getDeclaredEntries();
+            declared.forEach((key, value) -> declaredEntries.merge(key, value, (existing, set) -> {
+                existing.addAll(set);
+                return existing;
+            }));
+            declared.forEach((key, value) -> projectMap.put(key, project));
+            var found = javaSourceInfo.getFoundJavaEntries();
+            found.forEach((key, value) -> foundJavaFiles.merge(key, value, (existing, set) -> {
+                existing.addAll(set);
+                return existing;
+            }));
+        }
+        var declaredCount = declaredEntries.values().stream().flatMap(Set::stream).collect(Collectors.toSet()).size();
+        var foundCount = foundJavaFiles.values().stream().flatMap(Set::stream).collect(Collectors.toSet()).size();
+        Set<Path> paths = new HashSet<>();
+        if (declaredCount != foundCount) {
+            declaredEntries.forEach((path, entries) -> {
+                String delta;
+                var found = foundJavaFiles.get(path);
+                if (found == null) {
+                    found = Collections.emptySet();
+                }
+                if ((entries.size() != found.size()) && paths.add(path)) {
+                    SortedSet<Path> registeredFilesSet =
+                            entries.stream().map(o -> o.getLocation().toPath()).collect(toCollection(TreeSet::new));
+                    SortedSet<Path> foundFilesSet = new TreeSet<>(found);
+                    var packageRoot = path;
+                    if (registeredFilesSet.size() < foundFilesSet.size()) {
+                        delta = foundFilesSet.stream()
+                                .filter(not(registeredFilesSet::contains))
+                                .map(p -> packageRoot.relativize(p).toString())
+                                .collect(joining("\n - ", " - ", "\n"));
+                    } else {
+                        delta = registeredFilesSet.stream()
+                                .filter(not(foundFilesSet::contains))
+                                .map(p -> packageRoot.relativize(p).toString())
+                                .collect(joining("\n - ", " - ", "\n"));
+                    }
+                    var status = Status.error(
+                        format(
+                            "Folder '%s' contains more Java files then configured in Bazel. This is a scenario which is challenging to support in IDEs! Consider re-structuring your source code into separate folder hierarchies and Bazel packages.\n%s",
+                            packageRoot,
+                            delta));
+                    var project = projectMap.get(path);
+                    try {
+                        createBuildPathProblem(project, status);
+                    } catch (CoreException e) {
+                        LOG.error(e.getMessage(), e);
+                    }
+                }
+            });
         }
         return result;
     }

@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.idea.blaze.base.model.primitives.TargetName;
 import com.salesforce.bazel.eclipse.core.BazelCore;
+import com.salesforce.bazel.eclipse.core.model.discovery.projects.JavaProjectInfo;
 import com.salesforce.bazel.eclipse.core.projectview.BazelProjectView;
 import com.salesforce.bazel.sdk.model.BazelLabel;
 
@@ -211,6 +212,8 @@ public class BazelProject implements IProjectNature {
     private IProject project;
 
     private BazelModel bazelModel;
+
+    private JavaProjectInfo javaProjectInfo;
 
     /**
      * The default constructor is used by Eclipse when the nature is configured for an {@link IProject}.
@@ -489,6 +492,13 @@ public class BazelProject implements IProjectNature {
     }
 
     /**
+     * @return the javaProjectInfo
+     */
+    public JavaProjectInfo getJavaProjectInfo() {
+        return javaProjectInfo;
+    }
+
+    /**
      * Returns the location of the project.
      * <p>
      * The returned location will be the Bazel workspace root directory f {@link #isWorkspaceProject()} returns
@@ -600,6 +610,14 @@ public class BazelProject implements IProjectNature {
 
     public void setBazelTargets(List<BazelTarget> targets, IProgressMonitor monitor) throws CoreException {
         writeBazeltargetsFile(targets.stream().map(BazelTarget::getTargetName), monitor);
+    }
+
+    /**
+     * @param javaProjectInfo
+     *            the javaProjectInfo to set
+     */
+    public void setJavaProjectInfo(JavaProjectInfo javaProjectInfo) {
+        this.javaProjectInfo = javaProjectInfo;
     }
 
     public void setModel(BazelModel bazelModel) {
