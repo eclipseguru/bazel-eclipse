@@ -41,6 +41,7 @@ location "https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2025
 	com.google.guava
 	com.google.guava.failureaccess
 	com.google.javascript
+	org.apache.commons.commons-codec
 	org.apache.commons.lang3
 	org.apache.xerces
 	org.apache.xalan

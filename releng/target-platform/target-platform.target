@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?pde?>
 <!-- generated with https://github.com/eclipse-cbi/targetplatform-dsl -->
-<target name="bazel-eclipse-feature-target-platform" sequenceNumber="1761158715">
+<target name="bazel-eclipse-feature-target-platform" sequenceNumber="1761206578">
   <locations>
     <location includeMode="planner" includeAllPlatforms="false" includeSource="true" includeConfigurePhase="true" type="InstallableUnit">
       <unit id="org.eclipse.e4.rcp.feature.group" version="4.37.0.v20250828-1028"/>
@@ -39,6 +39,7 @@
       <unit id="com.google.guava" version="33.4.8.jre"/>
       <unit id="com.google.guava.failureaccess" version="1.0.3"/>
       <unit id="com.google.javascript" version="0.0.20250706.v20250709-1800"/>
+      <unit id="org.apache.commons.commons-codec" version="1.19.0"/>
       <unit id="org.apache.commons.lang3" version="3.18.0"/>
       <unit id="org.apache.xerces" version="2.12.2.v20230928-1306"/>
       <unit id="org.apache.xalan" version="2.7.2.v20230928-1302"/>
