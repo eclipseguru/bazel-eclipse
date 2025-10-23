@@ -1,19 +1,12 @@
 target "bazel-eclipse-feature-target-platform" with source configurePhase requirements environment JavaSE-21
 
-location "https://download.eclipse.org/eclipse/updates/4.34/" {
+location "https://download.eclipse.org/eclipse/updates/4.37/" {
 	org.eclipse.e4.rcp.feature.group
-	org.eclipse.ecf.core.feature.feature.group
-	org.eclipse.ecf.core.ssl.feature.feature.group
-	org.eclipse.ecf.filetransfer.feature.feature.group
-	org.eclipse.ecf.filetransfer.httpclient5.feature.feature.group
-	org.eclipse.ecf.filetransfer.ssl.feature.feature.group
-	org.eclipse.emf.common.feature.group
-	org.eclipse.emf.ecore.feature.group
 	org.eclipse.equinox.core.feature.feature.group
 	org.eclipse.equinox.core.sdk.feature.group
 	org.eclipse.equinox.executable
 	org.eclipse.equinox.executable.feature.group
-	org.eclipse.equinox.p2.core.feature.source.feature.group
+	org.eclipse.equinox.p2.core.feature.feature.group
 	org.eclipse.equinox.p2.discovery.feature.feature.group
 	org.eclipse.equinox.sdk.feature.group
 	org.eclipse.jdt.feature.group
@@ -37,7 +30,7 @@ location "https://download.eclipse.org/eclipse/updates/4.34/" {
 	org.objectweb.asm.util
 }
 
-location "https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2024-12/" {
+location "https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2025-09/" {
 	slf4j.api
 	ch.qos.logback.core
 	ch.qos.logback.classic
@@ -48,6 +41,7 @@ location "https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2024
 	com.google.guava
 	com.google.guava.failureaccess
 	com.google.javascript
+	org.apache.commons.commons-codec
 	org.apache.commons.lang3
 	org.apache.xerces
 	org.apache.xalan
@@ -58,19 +52,19 @@ location "https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2024
 	org.jdom2
 }
 
-location "https://download.eclipse.org/releases/2024-12/" {
+location "https://download.eclipse.org/releases/2025-09/" {
 	// TextMate
 	org.eclipse.tm4e.feature.feature.group
 }
 
-location "https://download.eclipse.org/jdtls/milestones/1.45.0/repository/" {
+location "https://download.eclipse.org/jdtls/milestones/1.51.0/repository/" {
 	org.eclipse.jdt.ls.core
 	org.eclipse.jdt.ls.filesystem
 	org.eclipse.jdt.ls.logback.appender
 }
 
 // locations below taken from eclipse.jdt.ls project (to allow building the JDT LS in same workspace)
-location "https://download.eclipse.org/releases/2024-12/" {
+location "https://download.eclipse.org/releases/2025-09/" {
 	org.eclipse.xtext.xbase.lib
 }
 
@@ -120,12 +114,12 @@ maven MavenDependencies scope=compile dependencyDepth=none missingManifest=gener
 	dependency {
 		groupId="com.google.protobuf"
 		artifactId="protobuf-java"
-		version="3.25.6"
+		version="4.33.0"
 	}
 	dependency {
 		groupId="com.google.protobuf"
 		artifactId="protobuf-java-util"
-		version="3.25.6"
+		version="4.33.0"
 	}
 	dependency {
 		groupId="com.googlecode.json-simple"
