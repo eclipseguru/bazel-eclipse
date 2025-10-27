@@ -205,8 +205,15 @@ public class TracingSubMonitor implements IProgressMonitor {
         return newChild(name, monitor);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Also performs a cancellation check on the underlying monitor.
+     * </p>
+     */
     @Override
-    public void subTask(String name) {
+    public void subTask(String name) throws OperationCanceledException {
+        subMonitor.checkCanceled();
         subMonitor.subTask(name);
     }
 
