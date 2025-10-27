@@ -321,7 +321,11 @@ public class JavaSourceInfo {
                         var javaFilesInParent = foundJavaFiles.size();
                         if (javaFilesInParent != declaredJavaFilesInFolder) {
                             if (potentialSplitPackageOrSubsetFolders.add(potentialSourceRoot)) {
-                                reportDeltaAsProblem(result, entryParentLocation, entry.getValue(), foundJavaFiles);
+                                reportSplitPackagesProblem(
+                                    result,
+                                    entryParentLocation,
+                                    entry.getValue(),
+                                    foundJavaFiles);
                             }
                             continue; // continue with next so we capture all possible warnings (we could also abort, though)
                         }
@@ -360,7 +364,7 @@ public class JavaSourceInfo {
                             && potentialSplitPackageOrSubsetFolders.add(potentialSourceRoot)) {
                         List<? super JavaSourceEntry> declaredEntries =
                                 (List<? super JavaSourceEntry>) potentialSourceRootAndSourceEntries.getValue();
-                        reportDeltaAsProblem(result, potentialSourceRootPath, declaredEntries, foundJavaFiles);
+                        reportSplitPackagesProblem(result, potentialSourceRootPath, declaredEntries, foundJavaFiles);
                     }
                 } catch (IOException e) {
                     throw new CoreException(
@@ -743,7 +747,7 @@ public class JavaSourceInfo {
         return null;
     }
 
-    private void reportDeltaAsProblem(MultiStatus result, Path rootDirectory,
+    private void reportSplitPackagesProblem(MultiStatus result, Path rootDirectory,
             List<? super JavaSourceEntry> declaredEntries, List<Path> foundJavaFiles) {
         SortedSet<Path> registeredFilesSet = declaredEntries.stream()
                 .map(o -> ((JavaSourceEntry) o).getLocation().toPath())
@@ -763,9 +767,9 @@ public class JavaSourceInfo {
                     .collect(joining("\n - ", " - ", "\n"));
         }
         result.add(
-            Status.error(
+            Status.warning(
                 format(
-                    "Folder '%s' contains more Java files then configured in Bazel. This is a scenario which is challenging to support in IDEs! Consider re-structuring your source code into separate folder hierarchies and Bazel packages.\n%s",
+                    "Possible split-package detected. Folder '%s' contains more Java files then configured for a particular target. This is a scenario which is challenging to support in IDEs! Consider re-structuring your source code into separate folder hierarchies and Bazel packages.\n%s",
                     rootDirectory,
                     delta)));
     }
