@@ -14,6 +14,9 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+
+import java.util.Optional;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
@@ -151,6 +154,13 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
     }
 
     /**
+     * {@return the optional info if already loaded, otherwise an empty optional}
+     */
+    protected final Optional<I> getInfoWhenLoaded() {
+        return ofNullable(getInfoCache().getIfPresent(this));
+    }
+
+    /**
      * Returns the full qualified label for this element.
      * <p>
      * Note, not all elements in the model have a label. The label is only available when it allows to uniquely identify
@@ -225,10 +235,6 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
     @Override
     public abstract int hashCode();
 
-    public final boolean hasInfo() {
-        return getInfoCache().getIfPresent(this) != null;
-    }
-
     public boolean hasParent() {
         return getParent() != null;
     }
@@ -239,6 +245,13 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
     final void invalidateInfo() {
         var infoCache = getInfoCache();
         infoCache.invalidate(this);
+    }
+
+    /**
+     * {@return <code>true</code> if the element info is already loaded in the cache, <code>false</code> otherwise}
+     */
+    public final boolean hasInfo() {
+        return getInfoCache().getIfPresent(this) != null;
     }
 
     /**

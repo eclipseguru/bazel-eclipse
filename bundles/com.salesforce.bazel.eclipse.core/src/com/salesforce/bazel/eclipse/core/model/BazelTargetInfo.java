@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
@@ -64,16 +65,39 @@ public final class BazelTargetInfo extends BazelElementInfo {
 
     private final BazelTarget bazelTarget;
     private final String targetName;
-    private Target target;
+    private final Target target;
     private volatile BazelProject bazelProject;
+    private volatile Boolean hasBazelProject;
     private volatile BazelRuleAttributes ruleAttributes;
 
     private List<IPath> ruleOutput;
     private BazelVisibility visibility;
 
-    public BazelTargetInfo(String targetName, BazelTarget bazelTarget) {
+    public BazelTargetInfo(String targetName, BazelTarget bazelTarget, BazelPackageInfo packageInfo,
+            Optional<IProject> discoveredProjectCache) throws CoreException {
         this.targetName = targetName;
         this.bazelTarget = bazelTarget;
+
+        // re-use the info obtained from bazel query for the whole package
+        target = packageInfo.getTarget(getTargetName());
+        if (target == null) {
+            throw new CoreException(
+                    Status.error(
+                        format(
+                            "Target '%s' does not exist in package '%s'!",
+                            getTargetName(),
+                            packageInfo.getBazelPackage().getLabel())));
+        }
+
+        // re-use a previously discovered project
+        if (discoveredProjectCache != null) {
+            if (discoveredProjectCache.isPresent()) {
+                bazelProject = new BazelProject(discoveredProjectCache.get(), bazelTarget.getModel());
+                hasBazelProject = true;
+            } else {
+                hasBazelProject = false;
+            }
+        }
     }
 
     public BazelProject getBazelProject() throws CoreException {
@@ -82,7 +106,15 @@ public final class BazelTargetInfo extends BazelElementInfo {
             return cachedProject;
         }
 
-        var project = findProject(getBazelTarget());
+        // avoid checking for project multiple times (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        IProject project;
+        if ((hasBazelProject != null) && !hasBazelProject) {
+            project = null;
+        } else {
+            project = findProject(getBazelTarget());
+            hasBazelProject = project != null;
+        }
+
         if (project == null) {
             throw new CoreException(
                     Status.error(
@@ -162,20 +194,5 @@ public final class BazelTargetInfo extends BazelElementInfo {
         }
 
         return visibility = new BazelVisibility(visibilityValue);
-    }
-
-    public void load(BazelPackageInfo packageInfo) throws CoreException {
-        // re-use the info obtained from bazel query for the whole package
-        var target = packageInfo.getTarget(getTargetName());
-        if (target == null) {
-            throw new CoreException(
-                    Status.error(
-                        format(
-                            "Target '%s' does not exist in package '%s'!",
-                            getTargetName(),
-                            packageInfo.getBazelPackage().getLabel())));
-        }
-
-        this.target = target;
     }
 }

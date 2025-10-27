@@ -4,6 +4,7 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.BAZEL_NATURE_ID;
+import static java.util.Collections.unmodifiableList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +17,14 @@ public final class BazelModelInfo extends BazelElementInfo {
 
     private final BazelModel bazelModel;
 
+    private volatile List<BazelWorkspace> discoveredWorkspaces;
+
     public BazelModelInfo(BazelModel bazelModel) {
         this.bazelModel = bazelModel;
     }
 
-    public List<BazelWorkspace> findWorkspaces() throws CoreException {
-        var result = new ArrayList<BazelWorkspace>();
+    private List<BazelWorkspace> findWorkspaces() throws CoreException {
+        List<BazelWorkspace> result = new ArrayList<>();
         var projects = ResourcesPlugin.getWorkspace().getRoot().getProjects();
         for (IProject project : projects) {
             if (project.isOpen() && project.hasNature(BAZEL_NATURE_ID)) {
@@ -38,4 +41,13 @@ public final class BazelModelInfo extends BazelElementInfo {
     public BazelModel getOwner() {
         return bazelModel;
     }
+
+    public List<BazelWorkspace> getWorkspaces() throws CoreException {
+        var cachedWorkspaces = discoveredWorkspaces;
+        if (cachedWorkspaces != null) {
+            return cachedWorkspaces;
+        }
+        return discoveredWorkspaces = unmodifiableList(findWorkspaces());
+    }
+
 }
