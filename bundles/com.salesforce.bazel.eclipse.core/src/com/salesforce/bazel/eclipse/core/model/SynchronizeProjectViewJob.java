@@ -648,7 +648,7 @@ public class SynchronizeProjectViewJob extends WorkspaceJob {
             // invalidate the entire cache because we want to ensure we sync fresh
             // FIXME: this should not be required but currently is because our ResourceChangeProcessor is very light
             // ideally we would monitor resource change events and invalidate individual targets/packages only when necessary
-            workspace.getModel().getInfoCache().invalidateAll();
+            workspace.getModel().invalidateAll();
 
             // during synchronization resource changes may occur; however, they are triggered by the synchronization activities
             // therefore we suspend cache invalidation of the model due to resource changes

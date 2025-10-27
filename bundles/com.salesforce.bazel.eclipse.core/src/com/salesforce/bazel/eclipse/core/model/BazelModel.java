@@ -117,4 +117,8 @@ public final class BazelModel extends BazelElement<BazelModelInfo, BazelElement<
     public int hashCode() {
         return BazelModel.class.hashCode();
     }
+
+    public void invalidateAll() throws CoreException {
+        getInfoCache().invalidateAll();
+    }
 }

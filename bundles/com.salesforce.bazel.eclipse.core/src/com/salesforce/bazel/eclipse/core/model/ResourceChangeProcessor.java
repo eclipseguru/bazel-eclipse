@@ -159,7 +159,7 @@ class ResourceChangeProcessor implements IResourceChangeListener {
         // FIXME: optimize to be less aggressive
         // we "only" need to invalidate classpath of projects depending on the to be deleted one
         // however, ideally a sync is required now
-        modelManager.getModel().getInfoCache().invalidateAll();
+        modelManager.getModel().invalidateAll();
     }
 
     private void invalidateBazelWorkspaceCache(IProject project) {

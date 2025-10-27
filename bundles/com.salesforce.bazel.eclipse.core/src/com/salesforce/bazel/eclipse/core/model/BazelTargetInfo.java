@@ -67,6 +67,7 @@ public final class BazelTargetInfo extends BazelElementInfo {
     private Target target;
     private volatile BazelProject bazelProject;
     private volatile BazelRuleAttributes ruleAttributes;
+    private IProject project;
 
     private List<IPath> ruleOutput;
     private BazelVisibility visibility;
@@ -82,7 +83,9 @@ public final class BazelTargetInfo extends BazelElementInfo {
             return cachedProject;
         }
 
-        var project = findProject(getBazelTarget());
+        if (project == null) {
+            project = findProject(getBazelTarget());
+        }
         if (project == null) {
             throw new CoreException(
                     Status.error(

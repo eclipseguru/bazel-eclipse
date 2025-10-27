@@ -134,6 +134,8 @@ public final class BazelPackageInfo extends BazelElementInfo {
         return result;
     }
 
+    private IProject project;
+
     private final Path buildFile;
     private final BazelPackage bazelPackage;
     private final Map<String, Target> indexOfTargetInfoByTargetName;
@@ -142,8 +144,7 @@ public final class BazelPackageInfo extends BazelElementInfo {
 
     private BazelVisibility defaultVisibility;
 
-    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage,
-            Map<String, Target> indexOfTargetInfoByTargetName) {
+    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage, Map<String, Target> indexOfTargetInfoByTargetName) {
         this.buildFile = buildFile;
         this.bazelPackage = bazelPackage;
         this.indexOfTargetInfoByTargetName = indexOfTargetInfoByTargetName;
@@ -159,7 +160,9 @@ public final class BazelPackageInfo extends BazelElementInfo {
             return cachedProject;
         }
 
-        var project = findProject(getBazelPackage());
+        if (project == null) {
+            project = findProject(getBazelPackage());
+        }
         if (project == null) {
             throw new CoreException(
                     Status.error(
