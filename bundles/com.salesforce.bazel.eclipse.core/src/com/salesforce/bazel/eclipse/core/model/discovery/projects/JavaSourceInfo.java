@@ -779,7 +779,7 @@ public class JavaSourceInfo {
         result.add(
             Status.warning(
                 format(
-                    "Possible split-package detected. Folder '%s' contains more Java files then configured for a particular target. This is a scenario which is challenging to support in IDEs! Consider re-structuring your source code into separate folder hierarchies and Bazel packages.\n%s",
+                    "Possible split-package detected. Folder '%s' contains more Java files then configured for a particular target. This is a scenario which is challenging to support in this IDE! Consider re-structuring your source code into separate folder hierarchies and Bazel packages.\n%s",
                     rootDirectory,
                     delta)));
     }
