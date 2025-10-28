@@ -67,6 +67,10 @@ class BazelElementOpenJob<I extends BazelElementInfo> extends Job implements ISc
         return false;
     }
 
+    private String getOpenErrorStatusMessage(Throwable e) {
+        return format("Opening element at '%s' failed with: '%s'", location, e.getMessage());
+    }
+
     @Override
     public boolean isConflicting(ISchedulingRule rule) {
         if (rule == this) {
@@ -94,10 +98,7 @@ class BazelElementOpenJob<I extends BazelElementInfo> extends Job implements ISc
             throw new OperationCanceledException("Opening canceled");
         }
         if (openException != null) {
-            throw new CoreException(
-                    Status.error(
-                        format("Error opening element at '%s': %s", location, openException.getMessage()),
-                        openException));
+            throw new CoreException(Status.error(getOpenErrorStatusMessage(openException), openException));
         }
 
         return requireNonNull(info, "Programming error: the info is expected to be set at this point. Check the code!");
@@ -129,7 +130,7 @@ class BazelElementOpenJob<I extends BazelElementInfo> extends Job implements ISc
             return Status.CANCEL_STATUS;
         } catch (CoreException e) {
             openException = e;
-            return Status.error(format("Opening element at '%s' failed with: '%s'", location, e.getMessage()), e);
+            return Status.error(getOpenErrorStatusMessage(e), e);
         } finally {
             opened.countDown();
 

@@ -18,6 +18,7 @@ import static java.util.Objects.requireNonNull;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.Status;
 
 import com.salesforce.bazel.eclipse.core.model.cache.BazelElementInfoCache;
 import com.salesforce.bazel.sdk.model.BazelLabel;
@@ -138,6 +139,10 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
             return openJob.open();
         } catch (InterruptedException e) {
             throw new OperationCanceledException("Interrupted while opening element.");
+        } catch (CoreException e) {
+            // wrap to provide better context
+            throw new CoreException(
+                    Status.error(String.format("Error opening '%s': '%s'", location, e.getMessage()), e));
         }
     }
 
