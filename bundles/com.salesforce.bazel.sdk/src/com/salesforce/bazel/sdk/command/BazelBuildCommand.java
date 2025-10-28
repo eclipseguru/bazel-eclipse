@@ -7,8 +7,10 @@ import static java.nio.file.Files.newInputStream;
 import static java.util.Objects.requireNonNull;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ public class BazelBuildCommand extends BazelCommand<ParsedBepOutput> {
     private static Logger LOG = LoggerFactory.getLogger(BazelBuildCommand.class);
 
     private Path bepFile;
+    private Path targetsFile;
     private Interner<String> interner;
     private final boolean keepGoing;
     private final List<BazelLabel> targets;
@@ -60,6 +63,13 @@ public class BazelBuildCommand extends BazelCommand<ParsedBepOutput> {
             } catch (IOException e) {
                 LOG.warn("Unable to delete '{}'. Please clean up manually to free some space.", bepFile, e);
             }
+            try {
+                if (deleteIfExists(targetsFile)) {
+                    LOG.debug("Deleted '{}'", targetsFile);
+                }
+            } catch (IOException e) {
+                LOG.warn("Unable to delete '{}'. Please clean up manually to free some space.", targetsFile, e);
+            }
         }
     }
 
@@ -81,9 +91,11 @@ public class BazelBuildCommand extends BazelCommand<ParsedBepOutput> {
         }
 
         // targets
-        for (BazelLabel target : targets) {
-            commandLine.add(target.toString());
-        }
+        // --target_pattern_file=targets.txt
+        targetsFile = createTempFile("bazel_targets_file_", ".txt");
+        List<String> targetsAsString = targets.stream().map(BazelLabel::toString).collect(Collectors.toList());
+        Files.write(targetsFile, targetsAsString);
+        commandLine.add(format("--target_pattern_file=%s", targetsFile));
 
         return commandLine;
     }
