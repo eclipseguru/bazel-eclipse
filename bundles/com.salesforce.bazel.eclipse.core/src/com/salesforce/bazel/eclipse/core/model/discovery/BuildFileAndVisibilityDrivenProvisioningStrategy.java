@@ -265,8 +265,7 @@ public class BuildFileAndVisibilityDrivenProvisioningStrategy extends BuildfileD
                 workspace.open(allPackagesWithVisibleTargets);
 
                 // log a warning if the cache is too small
-                var packagesNotOpen =
-                        allPackagesWithVisibleTargets.stream().filter(not(BazelPackage::hasInfo)).toList();
+                var packagesNotOpen = allPackagesWithVisibleTargets.stream().filter(not(BazelPackage::hasInfo)).toList();
                 if (packagesNotOpen.size() > 0) {
                     LOG.warn(
                         "Classpath computation might be slow. The Bazel element cache is too small. Please increase the cache size by at least {}.",

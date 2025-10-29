@@ -535,7 +535,8 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
                             bazelPackage.findBuildFile(),
                             () -> format("non-existing Bazel package: %s", bazelPackage.getLabel())),
                         bazelPackage,
-                        targets));
+                        targets,
+                        null /* no project discovery performed yet */));
         }
     }
 

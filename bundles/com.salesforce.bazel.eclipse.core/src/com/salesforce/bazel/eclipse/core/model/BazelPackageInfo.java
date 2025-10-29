@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.eclipse.core.resources.IProject;
@@ -139,14 +140,25 @@ public final class BazelPackageInfo extends BazelElementInfo {
     private final Map<String, Target> indexOfTargetInfoByTargetName;
 
     private volatile BazelProject bazelProject;
+    private volatile Boolean hasBazelProject;
 
     private BazelVisibility defaultVisibility;
 
-    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage,
-            Map<String, Target> indexOfTargetInfoByTargetName) {
+    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage, Map<String, Target> indexOfTargetInfoByTargetName,
+            Optional<IProject> discoveredProjectCache) {
         this.buildFile = buildFile;
         this.bazelPackage = bazelPackage;
         this.indexOfTargetInfoByTargetName = indexOfTargetInfoByTargetName;
+
+        // re-use a previously discovered project
+        if (discoveredProjectCache != null) {
+            if (discoveredProjectCache.isPresent()) {
+                bazelProject = new BazelProject(discoveredProjectCache.get(), bazelPackage.getModel());
+                hasBazelProject = true;
+            } else {
+                hasBazelProject = false;
+            }
+        }
     }
 
     public BazelPackage getBazelPackage() {
@@ -159,7 +171,15 @@ public final class BazelPackageInfo extends BazelElementInfo {
             return cachedProject;
         }
 
-        var project = findProject(getBazelPackage());
+        // avoid checking for project multiple times (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        IProject project;
+        if ((hasBazelProject != null) && !hasBazelProject) {
+            project = null;
+        } else {
+            project = findProject(getBazelPackage());
+            hasBazelProject = project != null;
+        }
+
         if (project == null) {
             throw new CoreException(
                     Status.error(
