@@ -1,5 +1,6 @@
 package com.salesforce.bazel.eclipse.core.model.discovery.projects;
 
+import static com.salesforce.bazel.sdk.command.querylight.BazelRuleAttribute.SRCS;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -403,6 +404,16 @@ public class JavaProjectInfo {
 
         // treat as label if it looks like one
         if (shouldTreatAsLabel(srcFileOrLabel)) {
+            var target = bazelPackage.getBazelTarget(srcFileOrLabel);
+            if ((target != null) && "filegroup".equals(target.getRuleClass())) {
+                var attributes = target.getRuleAttributes();
+                var srcs = attributes.getStringList(SRCS);
+                if (srcs != null) {
+                    for (String src : srcs) {
+                        return toJavaSourceFileOrLabelEntry(src);
+                    }
+                }
+            }
             return newLabelEntry(srcFileOrLabel);
         }
 
@@ -415,6 +426,16 @@ public class JavaProjectInfo {
 
         // treat as label if it looks like one
         if (shouldTreatAsLabel(srcFileOrLabel)) {
+            var target = bazelPackage.getBazelTarget(srcFileOrLabel);
+            if ((target != null) && "filegroup".equals(target.getRuleClass())) {
+                var attributes = target.getRuleAttributes();
+                var srcs = attributes.getStringList(SRCS);
+                if (srcs != null) {
+                    for (String src : srcs) {
+                        return toResourceFileOrLabelEntry(src, resourceStripPrefix);
+                    }
+                }
+            }
             return newLabelEntry(srcFileOrLabel);
         }
 
