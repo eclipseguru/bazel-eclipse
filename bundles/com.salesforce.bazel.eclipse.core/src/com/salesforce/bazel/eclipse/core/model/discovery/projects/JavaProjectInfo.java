@@ -1,5 +1,6 @@
 package com.salesforce.bazel.eclipse.core.model.discovery.projects;
 
+import static com.salesforce.bazel.sdk.command.querylight.BazelRuleAttribute.SRCS;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -116,7 +117,14 @@ public class JavaProjectInfo {
      * @throws CoreException
      */
     public void addResource(String resourceFileOrLabel, String resourceStripPrefix) throws CoreException {
-        addToResources(resources, resourceFileOrLabel, resourceStripPrefix);
+        var srcs = getFilegroupSrcs(resourceFileOrLabel);
+        if (srcs != null) {
+            for (String src : srcs) {
+                addResource(src, resourceStripPrefix);
+            }
+        } else {
+            addToResources(resources, resourceFileOrLabel, resourceStripPrefix);
+        }
     }
 
     /**
@@ -148,7 +156,14 @@ public class JavaProjectInfo {
      * @throws CoreException
      */
     public void addSrc(String srcFileOrLabel, EntrySettings entrySettings) throws CoreException {
-        addToSrc(srcs, srcFileOrLabel, entrySettings);
+        var srcs = getFilegroupSrcs(srcFileOrLabel);
+        if (srcs != null) {
+            for (String src : srcs) {
+                addSrc(src, entrySettings);
+            }
+        } else {
+            addToSrc(this.srcs, srcFileOrLabel, entrySettings);
+        }
     }
 
     public void addTestJar(String jarFileOrLabel, String srcJarFileOrLabel) throws CoreException {
@@ -174,7 +189,14 @@ public class JavaProjectInfo {
      * @throws CoreException
      */
     public void addTestResource(String resourceFileOrLabel, String resourceStripPrefix) throws CoreException {
-        addToResources(testResources, resourceFileOrLabel, resourceStripPrefix);
+        var srcs = getFilegroupSrcs(resourceFileOrLabel);
+        if (srcs != null) {
+            for (String src : srcs) {
+                addResource(src, resourceStripPrefix);
+            }
+        } else {
+            addToResources(testResources, resourceFileOrLabel, resourceStripPrefix);
+        }
     }
 
     public void addTestSrc(GlobInfo globInfo, EntrySettings entrySettings) {
@@ -182,7 +204,14 @@ public class JavaProjectInfo {
     }
 
     public void addTestSrc(String srcFileOrLabel, EntrySettings entrySettings) throws CoreException {
-        addToSrc(testSrcs, srcFileOrLabel, entrySettings);
+        var srcs = getFilegroupSrcs(srcFileOrLabel);
+        if (srcs != null) {
+            for (String src : srcs) {
+                addTestSrc(src, entrySettings);
+            }
+        } else {
+            addToSrc(testSrcs, srcFileOrLabel, entrySettings);
+        }
     }
 
     private void addToResources(Collection<Entry> resources, GlobInfo globInfo) {
@@ -255,6 +284,18 @@ public class JavaProjectInfo {
      */
     public BazelPackage getBazelPackage() {
         return bazelPackage;
+    }
+
+    private List<String> getFilegroupSrcs(String srcFileOrLabel) throws CoreException {
+        var label = relativizeLabelToPackageIfPossible(srcFileOrLabel);
+        if (shouldTreatAsLabel(label)) {
+            var target = bazelPackage.getBazelTarget(label);
+            if ((target != null) && "filegroup".equals(target.getRuleClass())) {
+                var attributes = target.getRuleAttributes();
+                return attributes.getStringList(SRCS);
+            }
+        }
+        return null;
     }
 
     public JavaArchiveInfo getJarInfo() {
