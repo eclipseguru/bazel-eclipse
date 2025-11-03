@@ -450,9 +450,9 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                 // create the project directly within the package (note, there can be at most one project per package with this strategy anyway)
                 var projectLocation = bazelPackage.getLocation();
                 createProjectForElement(projectName, projectLocation, bazelPackage, monitor.slice(1));
-            } else {
-                // use existing project
-                bazelPackage.getBazelProject().getProject();
+
+                // refresh the package info
+                bazelPackage.rediscoverBazelProject();
             }
 
             return bazelPackage.getBazelProject();

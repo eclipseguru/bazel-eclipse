@@ -212,4 +212,19 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
             return true; // not visible
         }
     }
+
+    /**
+     * Discards any previous cached info about this target's project.
+     * <p>
+     * Calling this method may be necessary while projects are added/removed in the Eclipse workspace and resource
+     * changes are batched, i.e. not broadcast immediately.
+     * </p>
+     *
+     * @throws CoreException
+     */
+    public void rediscoverBazelProject() throws CoreException {
+        invalidateInfo();
+        // force re-loading of the project info immediately
+        getInfo();
+    }
 }
