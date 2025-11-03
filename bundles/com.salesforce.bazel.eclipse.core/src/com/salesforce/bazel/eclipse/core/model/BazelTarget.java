@@ -1,13 +1,10 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.TAG_NO_IDE;
-import static com.salesforce.bazel.eclipse.core.model.BazelTargetInfo.findProject;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
-import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
@@ -29,8 +26,6 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
     private final String targetName;
     private final BazelLabel label;
 
-    private volatile Optional<IProject> discoveredProjectCache;
-
     public BazelTarget(BazelPackage bazelPackage, String targetName) {
         var targetNameError = TargetName.validate(targetName);
         if (targetNameError != null) {
@@ -46,7 +41,7 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
     protected BazelTargetInfo createInfo() throws CoreException {
         // at this point, the package info is already loaded
         var bazelPackageInfo = getBazelPackage().getInfo();
-        return new BazelTargetInfo(getTargetName(), this, bazelPackageInfo, discoveredProjectCache);
+        return new BazelTargetInfo(getTargetName(), this, bazelPackageInfo);
     }
 
     @Override
@@ -185,18 +180,7 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
      * @throws CoreException
      */
     public boolean hasBazelProject() throws CoreException {
-        // note, we cannot use the info here, since that would throw an exception if the target does not have a project
-        var previouslyDiscoveredProject = discoveredProjectCache;
-        if (previouslyDiscoveredProject != null) {
-            return previouslyDiscoveredProject.isPresent();
-        }
-
-        var project = findProject(this);
-
-        // searching for a Bazel project in the workspace can be expensive, so we cache the result (see https://github.com/eclipseguru/bazel-eclipse/issues/8).
-        discoveredProjectCache = Optional.ofNullable(project);
-
-        return project != null;
+        return getInfo().hasBazelProject();
     }
 
     @Override

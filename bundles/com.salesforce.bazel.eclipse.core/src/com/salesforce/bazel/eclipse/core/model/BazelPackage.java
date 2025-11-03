@@ -2,7 +2,6 @@ package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_BUILD;
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_BUILD_BAZEL;
-import static com.salesforce.bazel.eclipse.core.model.BazelPackageInfo.findProject;
 import static java.lang.String.format;
 import static java.nio.file.Files.isDirectory;
 import static java.nio.file.Files.isRegularFile;
@@ -11,9 +10,7 @@ import static java.util.Objects.requireNonNull;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
-import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Status;
@@ -75,8 +72,6 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
     private final BazelLabel label;
     private final IPath packagePath;
 
-    private volatile Optional<IProject> discoveredProjectCache;
-
     BazelPackage(BazelWorkspace parent, IPath packagePath) throws NullPointerException, IllegalArgumentException {
         this.packagePath =
                 requireNonNull(packagePath, "No package path specified").makeRelative().removeTrailingSeparator();
@@ -93,7 +88,7 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
         }
 
         var targets = BazelPackageInfo.queryForTargets(this, getCommandExecutor());
-        return new BazelPackageInfo(buildFile, this, targets, discoveredProjectCache);
+        return new BazelPackageInfo(buildFile, this, targets);
     }
 
     @Override
@@ -296,7 +291,7 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
     /**
      * Indicated if there is a Bazel project in the workspace for this package.
      * <p>
-     * This method works without opening/loading the package.
+     * This method triggers opening/loading the package.
      * </p>
      *
      * @return <code>true</code> if there is a Bazel project in the workspace for this package, <code>false</code>
@@ -304,18 +299,7 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
      * @throws CoreException
      */
     public boolean hasBazelProject() throws CoreException {
-        // note, we cannot use the info here, since that would throw an exception if the package does not have a project
-        var previouslyDiscoveredProject = discoveredProjectCache;
-        if (previouslyDiscoveredProject != null) {
-            return previouslyDiscoveredProject.isPresent();
-        }
-
-        var project = findProject(this);
-
-        // searching for a Bazel project in the workspace can be expensive, so we cache the result (see https://github.com/eclipseguru/bazel-eclipse/issues/8).
-        discoveredProjectCache = Optional.ofNullable(project);
-
-        return project != null;
+        return getInfo().hasBazelProject();
     }
 
     public boolean hasBazelTarget(String name) throws CoreException {

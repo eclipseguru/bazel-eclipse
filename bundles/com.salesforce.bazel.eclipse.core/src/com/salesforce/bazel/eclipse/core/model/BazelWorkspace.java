@@ -529,14 +529,10 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
                 LOG.debug("Empty package: '{}'", bazelPackage);
                 targets = Collections.emptyMap();
             }
-            bazelPackage.openIfNecessary(
-                new BazelPackageInfo(
-                        requireNonNull(
-                            bazelPackage.findBuildFile(),
-                            () -> format("non-existing Bazel package: %s", bazelPackage.getLabel())),
-                        bazelPackage,
-                        targets,
-                        null /* no project discovery performed yet */));
+            if (!bazelPackage.hasInfo()) {
+                // getting the info loads the package avoiding unnecessary double loads
+                bazelPackage.getInfo();
+            }
         }
     }
 

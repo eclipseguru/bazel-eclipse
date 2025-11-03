@@ -21,7 +21,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
@@ -66,15 +65,14 @@ public final class BazelTargetInfo extends BazelElementInfo {
     private final BazelTarget bazelTarget;
     private final String targetName;
     private final Target target;
-    private volatile BazelProject bazelProject;
-    private volatile Boolean hasBazelProject;
+    private final BazelProject bazelProject;
     private volatile BazelRuleAttributes ruleAttributes;
 
     private List<IPath> ruleOutput;
     private BazelVisibility visibility;
 
-    public BazelTargetInfo(String targetName, BazelTarget bazelTarget, BazelPackageInfo packageInfo,
-            Optional<IProject> discoveredProjectCache) throws CoreException {
+    public BazelTargetInfo(String targetName, BazelTarget bazelTarget, BazelPackageInfo packageInfo)
+            throws CoreException {
         this.targetName = targetName;
         this.bazelTarget = bazelTarget;
 
@@ -89,40 +87,26 @@ public final class BazelTargetInfo extends BazelElementInfo {
                             packageInfo.getBazelPackage().getLabel())));
         }
 
-        // re-use a previously discovered project
-        if (discoveredProjectCache != null) {
-            if (discoveredProjectCache.isPresent()) {
-                bazelProject = new BazelProject(discoveredProjectCache.get(), bazelTarget.getModel());
-                hasBazelProject = true;
-            } else {
-                hasBazelProject = false;
-            }
+        // find project is expensive, do it only once when loading a package
+        // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        var project = findProject(bazelTarget);
+        if (project != null) {
+            bazelProject = new BazelProject(project, bazelTarget.getModel());
+        } else {
+            bazelProject = null;
         }
     }
 
     public BazelProject getBazelProject() throws CoreException {
-        var cachedProject = bazelProject;
-        if (cachedProject != null) {
-            return cachedProject;
+        if (bazelProject != null) {
+            return bazelProject;
         }
 
-        // avoid checking for project multiple times (https://github.com/eclipseguru/bazel-eclipse/issues/8)
-        IProject project;
-        if ((hasBazelProject != null) && !hasBazelProject) {
-            project = null;
-        } else {
-            project = findProject(getBazelTarget());
-            hasBazelProject = project != null;
-        }
-
-        if (project == null) {
-            throw new CoreException(
-                    Status.error(
-                        format(
-                            "Unable to find project for Bazel target '%s' in the Eclipse workspace. Please check the workspace setup!",
-                            getBazelTarget().getLabel())));
-        }
-        return bazelProject = new BazelProject(project, getBazelTarget().getModel());
+        throw new CoreException(
+                Status.error(
+                    format(
+                        "Unable to find project for Bazel target '%s' in the Eclipse workspace. Please check the workspace setup!",
+                        getBazelTarget().getLabel())));
     }
 
     public BazelTarget getBazelTarget() {
@@ -194,5 +178,9 @@ public final class BazelTargetInfo extends BazelElementInfo {
         }
 
         return visibility = new BazelVisibility(visibilityValue);
+    }
+
+    public boolean hasBazelProject() {
+        return bazelProject != null;
     }
 }
