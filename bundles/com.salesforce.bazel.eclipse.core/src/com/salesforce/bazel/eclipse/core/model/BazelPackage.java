@@ -2,7 +2,6 @@ package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_BUILD;
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_BUILD_BAZEL;
-import static com.salesforce.bazel.eclipse.core.model.BazelPackageInfo.findProject;
 import static java.lang.String.format;
 import static java.nio.file.Files.isDirectory;
 import static java.nio.file.Files.isRegularFile;
@@ -71,7 +70,6 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
 
     private final BazelWorkspace parent;
     private final BazelLabel label;
-
     private final IPath packagePath;
 
     BazelPackage(BazelWorkspace parent, IPath packagePath) throws NullPointerException, IllegalArgumentException {
@@ -290,8 +288,18 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
         return packagePath;
     }
 
+    /**
+     * Indicated if there is a Bazel project in the workspace for this package.
+     * <p>
+     * This method triggers opening/loading the package.
+     * </p>
+     *
+     * @return <code>true</code> if there is a Bazel project in the workspace for this package, <code>false</code>
+     *         otherwise
+     * @throws CoreException
+     */
     public boolean hasBazelProject() throws CoreException {
-        return findProject(this) != null;
+        return getInfo().hasBazelProject();
     }
 
     public boolean hasBazelTarget(String name) throws CoreException {
@@ -314,6 +322,21 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
 
     private java.nio.file.Path packagePath() {
         return getLocation().toPath();
+    }
+
+    /**
+     * Discards any previous cached info about this package's project.
+     * <p>
+     * Calling this method may be necessary while projects are added/removed in the Eclipse workspace and resource
+     * changes are batched, i.e. not broadcast immediately.
+     * </p>
+     *
+     * @throws CoreException
+     */
+    public void rediscoverBazelProject() throws CoreException {
+        invalidateInfo();
+        // force re-loading of the project info immediately
+        getInfo();
     }
 
 }

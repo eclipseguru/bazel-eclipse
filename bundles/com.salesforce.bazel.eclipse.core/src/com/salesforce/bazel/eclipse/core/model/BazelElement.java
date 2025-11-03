@@ -14,6 +14,9 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+
+import java.util.Optional;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
@@ -151,6 +154,13 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
     }
 
     /**
+     * {@return the optional info if already loaded, otherwise an empty optional}
+     */
+    protected final Optional<I> getInfoWhenLoaded() {
+        return ofNullable(getInfoCache().getIfPresent(this));
+    }
+
+    /**
      * Returns the full qualified label for this element.
      * <p>
      * Note, not all elements in the model have a label. The label is only available when it allows to uniquely identify
@@ -225,6 +235,9 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
     @Override
     public abstract int hashCode();
 
+    /**
+     * {@return <code>true</code> if the element info is already loaded in the cache, <code>false</code> otherwise}
+     */
     public final boolean hasInfo() {
         return getInfoCache().getIfPresent(this) != null;
     }
@@ -243,6 +256,10 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
 
     /**
      * Returns the {@link BazelElementInfo}, opening the element with the given info if none exists in the cache.
+     * <p>
+     * This method may be used when the info can be built outside of the normal loading process for avoiding triggering
+     * IO or other heavy operations again. Otherwise, {@link #getInfo()} should be used instead.
+     * </p>
      *
      * @return the loaded element info (may be cached)
      * @throws CoreException

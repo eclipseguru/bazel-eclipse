@@ -1,7 +1,6 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.TAG_NO_IDE;
-import static com.salesforce.bazel.eclipse.core.model.BazelTargetInfo.findProject;
 
 import java.util.List;
 import java.util.Objects;
@@ -40,9 +39,9 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
 
     @Override
     protected BazelTargetInfo createInfo() throws CoreException {
-        var info = new BazelTargetInfo(getTargetName(), this);
-        info.load(getBazelPackage().getInfo());
-        return info;
+        // at this point, the package info is already loaded
+        var bazelPackageInfo = getBazelPackage().getInfo();
+        return new BazelTargetInfo(getTargetName(), this, bazelPackageInfo);
     }
 
     @Override
@@ -170,8 +169,18 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
         return getInfo().getVisibility();
     }
 
+    /**
+     * Indicated if there is a Bazel project in the workspace for this target.
+     * <p>
+     * This method works without opening/loading the target.
+     * </p>
+     *
+     * @return <code>true</code> if there is a Bazel project in the workspace for this target, <code>false</code>
+     *         otherwise
+     * @throws CoreException
+     */
     public boolean hasBazelProject() throws CoreException {
-        return findProject(this) != null;
+        return getInfo().hasBazelProject();
     }
 
     @Override
@@ -202,5 +211,20 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
         } catch (CoreException e) {
             return true; // not visible
         }
+    }
+
+    /**
+     * Discards any previous cached info about this target's project.
+     * <p>
+     * Calling this method may be necessary while projects are added/removed in the Eclipse workspace and resource
+     * changes are batched, i.e. not broadcast immediately.
+     * </p>
+     *
+     * @throws CoreException
+     */
+    public void rediscoverBazelProject() throws CoreException {
+        invalidateInfo();
+        // force re-loading of the project info immediately
+        getInfo();
     }
 }

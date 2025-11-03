@@ -64,33 +64,49 @@ public final class BazelTargetInfo extends BazelElementInfo {
 
     private final BazelTarget bazelTarget;
     private final String targetName;
-    private Target target;
-    private volatile BazelProject bazelProject;
+    private final Target target;
+    private final BazelProject bazelProject;
     private volatile BazelRuleAttributes ruleAttributes;
 
     private List<IPath> ruleOutput;
     private BazelVisibility visibility;
 
-    public BazelTargetInfo(String targetName, BazelTarget bazelTarget) {
+    public BazelTargetInfo(String targetName, BazelTarget bazelTarget, BazelPackageInfo packageInfo)
+            throws CoreException {
         this.targetName = targetName;
         this.bazelTarget = bazelTarget;
-    }
 
-    public BazelProject getBazelProject() throws CoreException {
-        var cachedProject = bazelProject;
-        if (cachedProject != null) {
-            return cachedProject;
-        }
-
-        var project = findProject(getBazelTarget());
-        if (project == null) {
+        // re-use the info obtained from bazel query for the whole package
+        target = packageInfo.getTarget(getTargetName());
+        if (target == null) {
             throw new CoreException(
                     Status.error(
                         format(
-                            "Unable to find project for Bazel target '%s' in the Eclipse workspace. Please check the workspace setup!",
-                            getBazelTarget().getLabel())));
+                            "Target '%s' does not exist in package '%s'!",
+                            getTargetName(),
+                            packageInfo.getBazelPackage().getLabel())));
         }
-        return bazelProject = new BazelProject(project, getBazelTarget().getModel());
+
+        // find project is expensive, do it only once when loading a package
+        // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        var project = findProject(bazelTarget);
+        if (project != null) {
+            bazelProject = new BazelProject(project, bazelTarget.getModel());
+        } else {
+            bazelProject = null;
+        }
+    }
+
+    public BazelProject getBazelProject() throws CoreException {
+        if (bazelProject != null) {
+            return bazelProject;
+        }
+
+        throw new CoreException(
+                Status.error(
+                    format(
+                        "Unable to find project for Bazel target '%s' in the Eclipse workspace. Please check the workspace setup!",
+                        getBazelTarget().getLabel())));
     }
 
     public BazelTarget getBazelTarget() {
@@ -164,18 +180,7 @@ public final class BazelTargetInfo extends BazelElementInfo {
         return visibility = new BazelVisibility(visibilityValue);
     }
 
-    public void load(BazelPackageInfo packageInfo) throws CoreException {
-        // re-use the info obtained from bazel query for the whole package
-        var target = packageInfo.getTarget(getTargetName());
-        if (target == null) {
-            throw new CoreException(
-                    Status.error(
-                        format(
-                            "Target '%s' does not exist in package '%s'!",
-                            getTargetName(),
-                            packageInfo.getBazelPackage().getLabel())));
-        }
-
-        this.target = target;
+    public boolean hasBazelProject() {
+        return bazelProject != null;
     }
 }

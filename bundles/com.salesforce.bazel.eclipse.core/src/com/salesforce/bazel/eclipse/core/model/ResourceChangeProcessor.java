@@ -66,6 +66,11 @@ class ResourceChangeProcessor implements IResourceChangeListener {
         affectedProjects.stream().forEach(this::invalidateCache);
         projectViewProjects.stream().forEach(this::invalidateBazelWorkspaceCache);
 
+        if (!affectedProjects.isEmpty()) {
+            // in any project impacting event, reset the projects cache in the model
+            invalidateCache(modelManager.getModel());
+        }
+
         // if we have some, we need to refresh classpaths
         // but we do this asynchronously and *only* when the workspace is in auto-build mode
         // TODO: disabled because this behavior is annoying/too disruptive (we need a better thing, potentially delay, configurable, notification only)

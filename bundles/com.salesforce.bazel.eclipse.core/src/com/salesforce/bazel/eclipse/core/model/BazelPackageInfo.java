@@ -138,15 +138,24 @@ public final class BazelPackageInfo extends BazelElementInfo {
     private final BazelPackage bazelPackage;
     private final Map<String, Target> indexOfTargetInfoByTargetName;
 
-    private volatile BazelProject bazelProject;
+    private final BazelProject bazelProject;
 
     private BazelVisibility defaultVisibility;
 
-    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage,
-            Map<String, Target> indexOfTargetInfoByTargetName) {
+    BazelPackageInfo(Path buildFile, BazelPackage bazelPackage, Map<String, Target> indexOfTargetInfoByTargetName)
+            throws CoreException {
         this.buildFile = buildFile;
         this.bazelPackage = bazelPackage;
         this.indexOfTargetInfoByTargetName = indexOfTargetInfoByTargetName;
+
+        // find project is expensive, do it only once when loading a package
+        // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        var project = findProject(bazelPackage);
+        if (project != null) {
+            bazelProject = new BazelProject(project, bazelPackage.getModel());
+        } else {
+            bazelProject = null;
+        }
     }
 
     public BazelPackage getBazelPackage() {
@@ -154,20 +163,15 @@ public final class BazelPackageInfo extends BazelElementInfo {
     }
 
     public BazelProject getBazelProject() throws CoreException {
-        var cachedProject = bazelProject;
-        if (cachedProject != null) {
-            return cachedProject;
+        if (bazelProject != null) {
+            return bazelProject;
         }
 
-        var project = findProject(getBazelPackage());
-        if (project == null) {
-            throw new CoreException(
-                    Status.error(
-                        format(
-                            "Unable to find project for Bazel package '%s' in the Eclipse workspace. Please check the workspace setup!",
-                            getBazelPackage().getLabel())));
-        }
-        return bazelProject = new BazelProject(project, getBazelPackage().getModel());
+        throw new CoreException(
+                Status.error(
+                    format(
+                        "Unable to find project for Bazel package '%s' in the Eclipse workspace. Please check the workspace setup!",
+                        getBazelPackage().getLabel())));
     }
 
     public Path getBuildFile() {
@@ -203,6 +207,10 @@ public final class BazelPackageInfo extends BazelElementInfo {
 
     public Set<String> getTargets() {
         return Collections.unmodifiableSet(indexOfTargetInfoByTargetName.keySet());
+    }
+
+    public boolean hasBazelProject() throws CoreException {
+        return bazelProject != null;
     }
 
 }
