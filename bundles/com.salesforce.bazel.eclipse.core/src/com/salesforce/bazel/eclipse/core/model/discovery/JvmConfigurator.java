@@ -165,7 +165,7 @@ public class JvmConfigurator {
             getPrefix(vmType),
             resolvedJavaHomePath.getFileName().toString(),
             bazelWorkspace.getName());
-        var vm = findVmForNameOrPath(resolvedJavaHomePath, name);
+        var vm = findVmForNameOrPath(resolvedJavaHomePath, name, bazelWorkspace, vmType);
 
         // delete if location or other attributes don't not match
         if ((vm instanceof AbstractVMInstall realVm) && (!vm.getInstallLocation().toPath().equals(resolvedJavaHomePath)
@@ -239,12 +239,18 @@ public class JvmConfigurator {
         }
     }
 
-    private IVMInstall findVmForNameOrPath(java.nio.file.Path javaHome, String name) {
+    private IVMInstall findVmForNameOrPath(java.nio.file.Path javaHome, String name, BazelWorkspace bazelWorkspace,
+            String vmType) {
         var file = javaHome.toFile();
         var types = JavaRuntime.getVMInstallTypes();
         for (IVMInstallType type : types) {
             var installs = type.getVMInstalls();
             for (IVMInstall install : installs) {
+                if (!(install instanceof AbstractVMInstall realVm)
+                        || !bazelWorkspace.getLocation().toString().equals(realVm.getAttribute(VM_ATTR_WORKSPACE))
+                        || !vmType.equals(realVm.getAttribute(VM_ATTR_TYPE))) {
+                    continue;
+                }
                 if ((name != null) && name.equals(install.getName())) {
                     return install;
                 }

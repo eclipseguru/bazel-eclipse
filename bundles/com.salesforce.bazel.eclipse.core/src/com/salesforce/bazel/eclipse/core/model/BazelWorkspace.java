@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Status;
@@ -192,6 +193,11 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     public boolean exists() {
         var path = workspacePath();
         return isDirectory(path) && (findWorkspaceFile(path) != null);
+    }
+
+    public IProject findProject(BazelPackage bazelPackage) throws CoreException {
+        var info = bazelPackage.getBazelWorkspace().getInfo();
+        return info.getProject(bazelPackage.getLabel());
     }
 
     /**
@@ -529,6 +535,7 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
                 LOG.debug("Empty package: '{}'", bazelPackage);
                 targets = Collections.emptyMap();
             }
+            bazelPackage.setTargets(targets);
             if (!bazelPackage.hasInfo()) {
                 // getting the info loads the package avoiding unnecessary double loads
                 bazelPackage.getInfo();
@@ -539,4 +546,5 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     Path workspacePath() {
         return root.toPath();
     }
+
 }
