@@ -74,7 +74,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
     @Override
     public Map<BazelProject, CompileAndRuntimeClasspath> computeClasspaths(Collection<BazelProject> bazelProjects,
             BazelWorkspace workspace, BazelClasspathScope scope, IProgressMonitor progress) throws CoreException {
-        LOG.debug("Computing classpath for projects: {}", bazelProjects);
+        LOG.debug("Computing classpath for {} projects.", bazelProjects.size());
         try {
             var monitor =
                     TracingSubMonitor.convert(progress, "Computing Bazel project classpaths", 1 + bazelProjects.size());
@@ -452,7 +452,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                 createProjectForElement(projectName, projectLocation, bazelPackage, monitor.slice(1));
 
                 // refresh the package info
-                bazelPackage.rediscoverBazelProject();
+                // bazelPackage.rediscoverBazelProject();
             }
 
             return bazelPackage.getBazelProject();

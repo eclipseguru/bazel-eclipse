@@ -13,9 +13,6 @@
  */
 package com.salesforce.bazel.eclipse.core.model;
 
-import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.BAZEL_NATURE_ID;
-import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasOwnerPropertySetForLabel;
-import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasWorkspaceRootPropertySetToLocation;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.joining;
 
@@ -55,20 +52,8 @@ public final class BazelPackageInfo extends BazelElementInfo {
      * @throws CoreException
      */
     static IProject findProject(BazelPackage bazelPackage) throws CoreException {
-        var workspaceRoot = bazelPackage.getBazelWorkspace().getLocation();
-        // we don't care about the actual project name - we look for the property
-        var projects = getEclipseWorkspaceRoot().getProjects();
-        for (IProject project : projects) {
-            if (project.isAccessible() // is open
-                    && project.hasNature(BAZEL_NATURE_ID) // is a Bazel project
-                    && hasWorkspaceRootPropertySetToLocation(project, workspaceRoot) // belongs to the workspace root
-                    && hasOwnerPropertySetForLabel(project, bazelPackage.getLabel()) // represents the target
-            ) {
-                return project;
-            }
-        }
-
-        return null;
+        var bazelWorkspace = bazelPackage.getBazelWorkspace();
+        return bazelWorkspace.getInfo().getProject(bazelPackage.getLabel());
     }
 
     static Map<String, Target> queryForTargets(BazelPackage bazelPackage,
@@ -138,7 +123,7 @@ public final class BazelPackageInfo extends BazelElementInfo {
     private final BazelPackage bazelPackage;
     private final Map<String, Target> indexOfTargetInfoByTargetName;
 
-    private final BazelProject bazelProject;
+    private BazelProject bazelProject;
 
     private BazelVisibility defaultVisibility;
 
@@ -147,15 +132,6 @@ public final class BazelPackageInfo extends BazelElementInfo {
         this.buildFile = buildFile;
         this.bazelPackage = bazelPackage;
         this.indexOfTargetInfoByTargetName = indexOfTargetInfoByTargetName;
-
-        // find project is expensive, do it only once when loading a package
-        // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
-        var project = findProject(bazelPackage);
-        if (project != null) {
-            bazelProject = new BazelProject(project, bazelPackage.getModel());
-        } else {
-            bazelProject = null;
-        }
     }
 
     public BazelPackage getBazelPackage() {
@@ -163,6 +139,12 @@ public final class BazelPackageInfo extends BazelElementInfo {
     }
 
     public BazelProject getBazelProject() throws CoreException {
+        // find project is expensive, do it only once when loading a package
+        // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
+        var project = findProject(bazelPackage);
+        if (project != null) {
+            bazelProject = new BazelProject(project, bazelPackage.getModel());
+        }
         if (bazelProject != null) {
             return bazelProject;
         }
