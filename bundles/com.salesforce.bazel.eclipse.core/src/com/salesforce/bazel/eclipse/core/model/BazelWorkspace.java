@@ -134,6 +134,11 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     private final BazelModel parent;
 
     /**
+     * external workspaces have a defining workspace
+     */
+    private final BazelWorkspace definingWorkspace;
+
+    /**
      * Creates a new Bazel Workspace at the given path.
      *
      * @param root
@@ -142,7 +147,26 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      *            the model owning the workspace
      */
     public BazelWorkspace(IPath root, BazelModel parent) throws NullPointerException, IllegalArgumentException {
+        definingWorkspace = null;
         this.parent = requireNonNull(parent, "No model provided!");
+        if (!requireNonNull(root, "No workspace root provided!").isAbsolute()) {
+            throw new IllegalArgumentException("The path to the workspace root directory must be absolute!");
+        }
+        this.root = root;
+    }
+
+    /**
+     * Creates a new <i>external</i> Bazel Workspace at the given path and workspace.
+     *
+     * @param root
+     *            absolute path to the workspace root directory
+     * @param owner
+     *            the workspace <i>defining</i> the external workspace
+     */
+    public BazelWorkspace(IPath root, BazelWorkspace definingWorkspace)
+            throws NullPointerException, IllegalArgumentException {
+        this.definingWorkspace = requireNonNull(definingWorkspace, "No defining workspace provided!");
+        parent = requireNonNull(definingWorkspace.getModel(), "No model provided!");
         if (!requireNonNull(root, "No workspace root provided!").isAbsolute()) {
             throw new IllegalArgumentException("The path to the workspace root directory must be absolute!");
         }
@@ -273,6 +297,14 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      *             if the project cannot be found in the Eclipse workspace
      */
     public BazelProject getBazelProject() throws CoreException {
+        if (definingWorkspace != null) {
+            throw new CoreException(
+                    Status.error(
+                        format(
+                            "The external workspace '%s' does not have a Bazel project. Only the defining workspace '%s' has one. This code path should be fixed! Please report a bug.",
+                            getLocation(),
+                            definingWorkspace.getLocation())));
+        }
         return getInfo().getBazelProject();
     }
 
@@ -299,6 +331,10 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      * There is a single project view file used by the workspace at
      * {@link BazelProjectFileSystemMapper#getProjectViewLocation() a defined location}. This method reads the file and
      * returns the parsed project view.
+     * </p>
+     * <p>
+     * Caution: not every workspace has a project view (eg., external workspaces). In case no project view file is
+     * found, this method throws a {@link CoreException}.
      * </p>
      *
      * @return the project view for this workspace (never <code>null</code>)
@@ -353,6 +389,18 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     }
 
     /**
+     * {@return the {@link BazelWorkspace workspace} for configuring command execution, never <code>null</code>}
+     */
+    BazelWorkspace getBazelWorkspaceForCommandExecutionConfiguration() {
+        if (definingWorkspace != null) {
+            // when executing commands in an external workspace, we need to use the defining workspace for proper flags
+            return definingWorkspace;
+        }
+
+        return this;
+    }
+
+    /**
      * Looks up and returns a collection of external repositories matching a rule class predicate
      * <p>
      * This method does not work in bzlmod workspaces.
@@ -366,6 +414,30 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     public Stream<BazelRuleAttributes> getExternalRepositoriesByRuleClassNonBzlMod(Predicate<String> ruleClassPredicate)
             throws CoreException {
         return getInfo().getExternalRepositoriesByRuleClass(ruleClassPredicate);
+    }
+
+    /**
+     * Returns an {@link ExternalWorkspace} by its repository name.
+     * <p>
+     * This method only works in a <code>bzlmod</code> workspaces.
+     * </p>
+     *
+     * @param repoName
+     *            the repo name
+     * @return the {@link ExternalWorkspace} or <code>null</code> if not found
+     * @throws CoreException
+     */
+    public ExternalWorkspace getExternalRepositoryMappingByRepoName(String repoName) throws CoreException {
+        return getInfo().getExternalRepositoryMappingByRepoName(repoName);
+    }
+
+    /**
+     * {@return the list of external repositories defined in <code>bzlmod</code>}
+     *
+     * @throws CoreException
+     */
+    public Stream<ExternalWorkspace> getExternalRepositoryMappings() throws CoreException {
+        return getInfo().getExternalRepositoryMappings();
     }
 
     /**
@@ -384,27 +456,29 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     }
 
     /**
-     * Returns an {@link ExternalWorkspace} by its repository name.
+     * Returns a handle to an external workspace defined in this workspace.
      * <p>
-     * This method only works in a <code>bzlmod</code> workspaces.
+     * External workspaces are located under the output base of the defining workspace. Although they appear like a
+     * regular workspace they must be treated special. For example, they unlikely have a project view file. They are
+     * also never returned by {@link BazelModel#getBazelWorkspaces()}. Additional limitations apply.
      * </p>
      *
-     * @param repoName
-     *            the repo name
-     * @return the {@link ExternalWorkspace} or <code>null</code> if not found
+     * @param externalRoot
+     *            the absolute path to the external workspace root
+     * @return the handle to the external workspace (never <code>null</code>
+     * @throws IllegalArgumentException
+     *             if this workspace is not the defining workspace of the external workspace
      * @throws CoreException
      */
-    public ExternalWorkspace getExternalWorkspaceByRepoName(String repoName) throws CoreException {
-        return getInfo().getExternalWorkspaceByRepoName(repoName);
-    }
-
-    /**
-     * {@return the list of external workspaces defined in <code>bzlmod</code>}
-     *
-     * @throws CoreException
-     */
-    public Stream<ExternalWorkspace> getExternalWorkspaces() throws CoreException {
-        return getInfo().getExternalWorkspaces();
+    public BazelWorkspace getExternalWorkspace(IPath externalRoot) throws IllegalArgumentException, CoreException {
+        if (!getInfo().getOutputBase().isPrefixOf(externalRoot)) {
+            throw new IllegalArgumentException(
+                    format(
+                        "The external workspace at '%s' is not rooted in the output base of workspace '%s'!",
+                        externalRoot,
+                        getLocation()));
+        }
+        return new BazelWorkspace(externalRoot, this);
     }
 
     @Override
@@ -479,6 +553,13 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      */
     public boolean isBzlModEnabled() throws CoreException {
         return getInfo().isBzlModEnabled();
+    }
+
+    /**
+     * {@return <code>true</code> if this is an external workspace, <code>false</code> otherwise}
+     */
+    public boolean isExternal() {
+        return definingWorkspace != null;
     }
 
     /**

@@ -40,6 +40,11 @@ jobs:
         shell: bash
         run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
+      - name: Free up space on ubuntu-latest
+        if: success() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: .github/free_disk_space.sh
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
