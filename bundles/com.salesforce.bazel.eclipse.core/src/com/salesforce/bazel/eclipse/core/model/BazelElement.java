@@ -113,7 +113,11 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
         if (executor != null) {
             return executor;
         }
-        return commandExecutor = new BazelElementCommandExecutor(this);
+        return commandExecutor = new BazelElementCommandExecutor(getExecutionContext());
+    }
+
+    protected BazelElement<I, P> getExecutionContext() {
+        return this;
     }
 
     /**
@@ -125,7 +129,7 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
      */
     protected final I getInfo() throws CoreException {
         var infoCache = getInfoCache();
-        var info = infoCache.getIfPresent(this);
+        var info = infoCache.getIfPresent(getExecutionContext());
         if (info != null) {
             return info;
         }
@@ -137,7 +141,8 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
 
         // loads can be potentially expensive; we synchronize on the location
         var location = getLocation();
-        var openJob = new BazelElementOpenJob<>(location != null ? location : IPath.ROOT, this, infoCache);
+        var openJob =
+                new BazelElementOpenJob<>(location != null ? location : IPath.ROOT, getExecutionContext(), infoCache);
         try {
             return openJob.open();
         } catch (InterruptedException e) {
@@ -157,7 +162,7 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
      * {@return the optional info if already loaded, otherwise an empty optional}
      */
     protected final Optional<I> getInfoWhenLoaded() {
-        return ofNullable(getInfoCache().getIfPresent(this));
+        return ofNullable(getInfoCache().getIfPresent(getExecutionContext()));
     }
 
     /**
@@ -200,7 +205,7 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
      * @return the Bazel model this element belongs to
      */
     BazelModel getModel() {
-        BazelElement<?, ?> model = this;
+        BazelElement<?, ?> model = getExecutionContext();
         while ((model != null) && !(model instanceof BazelModel)) {
             model = model.getParent();
         }
@@ -239,7 +244,7 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
      * {@return <code>true</code> if the element info is already loaded in the cache, <code>false</code> otherwise}
      */
     public final boolean hasInfo() {
-        return getInfoCache().getIfPresent(this) != null;
+        return getInfoCache().getIfPresent(getExecutionContext()) != null;
     }
 
     public boolean hasParent() {
@@ -251,7 +256,7 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
      */
     final void invalidateInfo() {
         var infoCache = getInfoCache();
-        infoCache.invalidate(this);
+        infoCache.invalidate(getExecutionContext());
     }
 
     /**
@@ -274,24 +279,24 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
         var infoCache = getInfoCache();
 
         // ensure there is at most one info in the cache and this is what we use
-        return infoCache.putOrGetCached(this, requireNonNull(info, "null info not allowed"));
+        return infoCache.putOrGetCached(getExecutionContext(), requireNonNull(info, "null info not allowed"));
     }
 
     @Override
     public String toString() {
         var label = getLabel();
         if (label == null) {
-            return this.getClass().getSimpleName();
+            return getExecutionContext().getClass().getSimpleName();
         }
 
         var workspace = getBazelWorkspace();
-        if (workspace == this) {
+        if (workspace == getExecutionContext()) {
             return "BazelWorkspace (" + getLocation() + ")";
         }
 
         var info = hasInfo() ? " [OPEN]" : " [CLOSED]";
 
-        return this.getClass().getSimpleName() + " (" + label.toString() + ")" + info;
+        return getExecutionContext().getClass().getSimpleName() + " (" + label.toString() + ")" + info;
     }
 
 }

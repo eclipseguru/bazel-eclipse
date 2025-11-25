@@ -114,7 +114,9 @@ public class BazelElementCommandExecutor {
      */
     public <R> R runDirectlyWithinExistingWorkspaceLock(BazelCommand<R> command, List<IResource> resourcesToRefresh,
             IProgressMonitor monitor) throws CoreException {
-        configureCommand(command, executionContext.getBazelWorkspace());
+        configureCommand(
+            command,
+            executionContext.getBazelWorkspace().getBazelWorkspaceForCommandExecutionConfiguration());
         return getExecutionService()
                 .executeWithinExistingWorkspaceLock(command, executionContext, resourcesToRefresh, monitor);
     }
@@ -140,7 +142,9 @@ public class BazelElementCommandExecutor {
      * @throws CoreException
      */
     public <R> R runQueryWithoutLock(BazelReadOnlyCommand<R> command) throws CoreException {
-        configureCommand(command, executionContext.getBazelWorkspace());
+        configureCommand(
+            command,
+            executionContext.getBazelWorkspace().getBazelWorkspaceForCommandExecutionConfiguration());
         Future<R> future = getExecutionService().executeOutsideWorkspaceLockAsync(command, executionContext);
         try {
             return future.get();
@@ -179,7 +183,9 @@ public class BazelElementCommandExecutor {
      */
     public <R> R runWithWorkspaceLock(BazelCommand<R> command, ISchedulingRule rule, List<IResource> resourcesToRefresh)
             throws CoreException {
-        configureCommand(command, executionContext.getBazelWorkspace());
+        configureCommand(
+            command,
+            executionContext.getBazelWorkspace().getBazelWorkspaceForCommandExecutionConfiguration());
         Future<R> future = getExecutionService()
                 .executeWithWorkspaceLockAsync(command, executionContext, rule, resourcesToRefresh);
         try {

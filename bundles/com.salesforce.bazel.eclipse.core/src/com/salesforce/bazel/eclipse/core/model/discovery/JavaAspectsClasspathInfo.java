@@ -447,7 +447,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                         getBlazeInfo().getOutputBase().resolve("external").resolve(externalWorkspaceName.substring(1));
                 if (exists(externalWorkspacePath)) {
                     var path = fromPath(externalWorkspacePath.toRealPath());
-                    var externalWorkspace = bazelWorkspace.getParent().getBazelWorkspace(path);
+                    var externalWorkspace = bazelWorkspace.getExternalWorkspace(path);
                     if (externalWorkspace.exists()) {
                         return externalWorkspace;
                     }

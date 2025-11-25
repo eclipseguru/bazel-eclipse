@@ -299,6 +299,11 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
      * @throws CoreException
      */
     public boolean hasBazelProject() throws CoreException {
+        if (getBazelWorkspace().isExternal()) {
+            // external workspaces cannot have projects
+            return false;
+        }
+
         return getInfo().hasBazelProject();
     }
 
