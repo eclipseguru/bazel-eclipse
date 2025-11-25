@@ -3,11 +3,13 @@ package com.salesforce.bazel.eclipse.core.model.discovery;
 import static java.lang.String.format;
 import static org.eclipse.core.runtime.IPath.forPosix;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.jdt.core.IClasspathEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +103,15 @@ public class JavaClasspathJarLocationResolver {
         return locationDecoder;
     }
 
+    private IPath getPath(String path) throws IOException {
+        if (Platform.OS_WIN32.equals(Platform.getOS())) {
+            var file = new File(path);
+            var canonicalPath = file.getCanonicalPath();
+            return org.eclipse.core.runtime.Path.fromOSString(canonicalPath);
+        }
+        return forPosix(path);
+    }
+
     public WorkspaceRoot getWorkspaceRoot() {
         return workspaceRoot;
     }
@@ -129,7 +140,13 @@ public class JavaClasspathJarLocationResolver {
         // prefer the class jar because this is much better in Eclipse when debugging/stepping through code/code navigation/etc.
         var jarArtifactForIde = jar.getClassJar() != null ? jar.getClassJar() : jar.jarForIntellijLibrary();
         if (jarArtifactForIde.isMainWorkspaceSourceArtifact()) {
-            var jarPath = forPosix(locationDecoder.resolveSource(jarArtifactForIde).toString());
+            IPath jarPath;
+            try {
+                jarPath = getPath(locationDecoder.resolveSource(jarArtifactForIde).toString());
+            } catch (IOException e) {
+                LOG.error(e.getMessage(), e);
+                return null;
+            }
             var sourceJar = jar.getSourceJars().stream().findFirst();
             if (!sourceJar.isPresent()) {
                 if (LOG.isDebugEnabled()) {
@@ -140,8 +157,13 @@ public class JavaClasspathJarLocationResolver {
                 }
                 return ClasspathEntry.newLibraryEntry(jarPath, null, null, false /* test only */);
             }
-
-            var srcJarPath = forPosix(locationDecoder.resolveSource(sourceJar.get()).toString());
+            IPath srcJarPath;
+            try {
+                srcJarPath = getPath(locationDecoder.resolveSource(sourceJar.get()).toString());
+            } catch (IOException e) {
+                LOG.error(e.getMessage(), e);
+                srcJarPath = null;
+            }
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
                     "Found jar for '{}': {} (source {})",
@@ -153,7 +175,13 @@ public class JavaClasspathJarLocationResolver {
         }
         var jarArtifact = locationDecoder.resolveOutput(jarArtifactForIde);
         if (jarArtifact instanceof LocalFileArtifact localJar) {
-            var jarPath = forPosix(localJar.getPath().toString());
+            IPath jarPath;
+            try {
+                jarPath = getPath(localJar.getPath().toString());
+            } catch (IOException e) {
+                LOG.error(e.getMessage(), e);
+                return null;
+            }
             var sourceJar = jar.getSourceJars().stream().findFirst();
             if (!sourceJar.isPresent()) {
                 if (LOG.isDebugEnabled()) {
@@ -163,7 +191,14 @@ public class JavaClasspathJarLocationResolver {
             }
             var srcJarArtifact = locationDecoder.resolveOutput(sourceJar.get());
             if (srcJarArtifact instanceof LocalFileArtifact localSrcJar) {
-                var srcJarPath = forPosix(localSrcJar.getPath().toString());
+                var pathStr = org.eclipse.core.runtime.Path.fromOSString(localSrcJar.getPath().toString()).toString();
+                IPath srcJarPath;
+                try {
+                    srcJarPath = getPath(localSrcJar.getPath().toString());
+                } catch (IOException e) {
+                    LOG.error(e.getMessage(), e);
+                    srcJarPath = null;
+                }
                 if (LOG.isDebugEnabled()) {
                     LOG.debug(
                         "Found jar for '{}': {} (source {})",
