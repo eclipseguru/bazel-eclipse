@@ -159,6 +159,14 @@ The syntax of each entry is `key=value`, where `key` and `value` are expected st
 	* Providing a value greater then 0 will filter transitive dependencies and provide a partial classpath to the project model.
 	* Note: While all required compile-time dependencies are added regardless, there may be edge cases with the Eclipse compiler which may result in compile errors.
 
+### `target_discovery_settings`
+
+* `buildfile_query` Specifies the Bazel query expression used to discover packages when `target_discovery_strategy` is set to `bazel-query` (default is `//...`).
+	* This parameter is wrapped in a `buildfiles()` function during package discovery, e.g., `buildfiles(//...)`.
+	* Example: Set to `//some/path/...` to limit package discovery to a specific directory tree.
+	* Example: Set to `//module1/... + //module2/...` to discover packages from multiple specific paths. 
+
+
 ### `project_mappings`
 
 A list of mappings from targets (typically from external repositories) to projects in the IDE.

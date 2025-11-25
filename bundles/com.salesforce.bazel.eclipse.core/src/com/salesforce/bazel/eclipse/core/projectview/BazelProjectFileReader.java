@@ -66,6 +66,7 @@ public class BazelProjectFileReader {
         final LinkedHashSet<Path> importingFiles = new LinkedHashSet<>();
         IPath bazelBinary;
         final LinkedHashMap<String, String> targetProvisioningSettings = new LinkedHashMap<>();
+        final LinkedHashMap<String, String> targetDiscoverySettings = new LinkedHashMap<>();
         final LinkedHashMap<String, String> projectMappings = new LinkedHashMap<>();
         final LinkedHashSet<String> importPreferences = new LinkedHashSet<>();
         final LinkedHashSet<String> projectSettings = new LinkedHashSet<>();
@@ -136,6 +137,7 @@ public class BazelProjectFileReader {
                     bazelBinary,
                     targetDiscoveryStrategy,
                     targetProvisioningStrategy,
+                    targetDiscoverySettings,
                     targetProvisioningSettings,
                     projectMappings,
                     preferencesToImport,
@@ -340,6 +342,18 @@ public class BazelProjectFileReader {
                                         bazelProjectFile),
                                     e);
                         }
+                        break;
+                    }
+                    case "target_discovery_settings": {
+                        // extension for BEF
+                        parseSectionBodyIntoList(rawSection).forEach(s -> {
+                            var separator = s.indexOf('=');
+                            if (separator != -1) {
+                                var key = s.substring(0, separator).trim();
+                                var value = s.substring(separator + 1).trim();
+                                builder.targetDiscoverySettings.put(key, value);
+                            }
+                        });
                         break;
                     }
                     case "target_provisioning_settings": {
