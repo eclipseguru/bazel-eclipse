@@ -250,19 +250,19 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         return loadExternalRepositoryRules().get(externalRepositoryName);
     }
 
-    public ExternalWorkspace getExternalWorkspaceByRepoName(String repoName) throws CoreException {
+    public ExternalWorkspace getExternalRepositoryMappingByRepoName(String repoName) throws CoreException {
         var externalWorkspaceByRepoName = this.externalWorkspaceByRepoName;
         if (externalWorkspaceByRepoName == null) {
-            externalWorkspaceByRepoName = loadExternalWorkspaceMappings();
+            externalWorkspaceByRepoName = loadExternalRepoMappings();
         }
 
         return externalWorkspaceByRepoName.get(repoName);
     }
 
-    public Stream<ExternalWorkspace> getExternalWorkspaces() throws CoreException {
+    public Stream<ExternalWorkspace> getExternalRepositoryMappings() throws CoreException {
         var externalWorkspaceByRepoName = this.externalWorkspaceByRepoName;
         if (externalWorkspaceByRepoName == null) {
-            externalWorkspaceByRepoName = loadExternalWorkspaceMappings();
+            externalWorkspaceByRepoName = loadExternalRepoMappings();
         }
 
         return externalWorkspaceByRepoName.values().stream();
@@ -530,7 +530,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
                 .collect(toMap(BazelRuleAttributes::getName, Function.identity())); // index by the "name" attribute
     }
 
-    private synchronized Map<String, ExternalWorkspace> loadExternalWorkspaceMappings() throws CoreException {
+    private synchronized Map<String, ExternalWorkspace> loadExternalRepoMappings() throws CoreException {
         if (externalWorkspaceByRepoName != null) {
             return externalWorkspaceByRepoName;
         }

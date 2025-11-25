@@ -180,6 +180,11 @@ public final class BazelTarget extends BazelElement<BazelTargetInfo, BazelPackag
      * @throws CoreException
      */
     public boolean hasBazelProject() throws CoreException {
+        if (getBazelWorkspace().isExternal()) {
+            // external workspaces cannot have projects
+            return false;
+        }
+
         return getInfo().hasBazelProject();
     }
 

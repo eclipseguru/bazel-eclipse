@@ -57,7 +57,7 @@ public class ExternalLibrariesDiscovery extends LibrariesDiscoveryUtil {
     }
 
     private Stream<ExternalWorkspace> getExternalWorkspacesFiltered() throws CoreException {
-        return bazelWorkspace.getExternalWorkspaces()
+        return bazelWorkspace.getExternalRepositoryMappings()
                 .filter(a -> (a.repoName() != null) && externalJarsDiscoveryFilter.matches(Path.of(a.repoName())));
     }
 
