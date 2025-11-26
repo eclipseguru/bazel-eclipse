@@ -43,12 +43,18 @@ public class BazelQueryTargetDiscovery implements TargetDiscoveryStrategy {
             throws CoreException {
         var monitor = SubMonitor.convert(progress, 100);
 
+        // get buildfiles argument from projevt view
+        var buildfile_query = bazelWorkspace.getBazelProjectView().targetDiscoverySettings().get("buildfile_query");
+        if (buildfile_query == null || buildfile_query.isBlank()) {
+            buildfile_query = "//...";
+        }
+
         // bazel query 'buildfiles(//...)' --output package
         Collection<String> labels = bazelWorkspace.getCommandExecutor()
                 .runQueryWithoutLock(
                     new BazelQueryForPackagesCommand(
                             bazelWorkspace.getLocation().toPath(),
-                            "buildfiles(//...)",
+                            "buildfiles(" + buildfile_query + ")",
                             true,
                             "Querying for all available packages in workspace"));
 
