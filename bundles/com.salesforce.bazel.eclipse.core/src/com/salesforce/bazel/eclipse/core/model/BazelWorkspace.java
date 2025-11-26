@@ -589,6 +589,9 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      * This method may be more efficient then looking up packages individually. When possible it combines multiple
      * queries to Bazel into a fewer invocations.
      * </p>
+     * <p>
+     * Note, packages will be passed to `bazel query` as is, which might lead to issues when a package does not exist.
+     * </p>
      *
      * @param bazelPackages
      *            the collection of packages to open
