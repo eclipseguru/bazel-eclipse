@@ -86,6 +86,33 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
 
     private static final Path PATTERN_EVERYTHING = new Path("**");
 
+    /**
+     * Set of Bazel built-in repositories that should not be treated as external workspaces. These repositories are part
+     * of Bazel's internal implementation and cannot be queried with 'bazel info'.
+     */
+    private static final Set<String> BAZEL_BUILTIN_REPOSITORIES = Set.of(
+        "bazel_tools",
+        "local_jdk",
+        "local_config_cc",
+        "local_config_platform",
+        "local_config_python",
+        "local_config_sh",
+        "platforms",
+        "rules_cc",
+        "rules_java",
+        "rules_proto",
+        "rules_python",
+        "embedded_jdk",
+        "remotejdk11_linux",
+        "remotejdk11_macos",
+        "remotejdk11_win",
+        "remotejdk17_linux",
+        "remotejdk17_macos",
+        "remotejdk17_win",
+        "remotejdk21_linux",
+        "remotejdk21_macos",
+        "remotejdk21_win");
+
     private static Logger LOG = LoggerFactory.getLogger(JavaAspectsClasspathInfo.class);
 
     /**
@@ -439,6 +466,18 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
     private BazelWorkspace findExternalWorkspace(Label label) throws CoreException {
 
         var externalWorkspaceName = label.externalWorkspaceName();
+
+        // Skip Bazel built-in repositories - they are not real workspaces and cannot be queried
+        if (BAZEL_BUILTIN_REPOSITORIES.contains(externalWorkspaceName)) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(
+                    "Skipping built-in Bazel repository '{}' - not a real workspace: {}",
+                    externalWorkspaceName,
+                    label);
+            }
+            return null;
+        }
+
         if (externalWorkspaceName.startsWith("@")) {
             // we have a canonical repository name; try to see if it links to workspace in the IDE
             // IJ does similar thing: https://github.com/bazelbuild/intellij/blob/8b64eb559811a803e07bc07c278168f3607c0f50/base/src/com/google/idea/blaze/base/sync/workspace/WorkspaceHelper.java#L169-L184
@@ -447,6 +486,18 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                         getBlazeInfo().getOutputBase().resolve("external").resolve(externalWorkspaceName.substring(1));
                 if (exists(externalWorkspacePath)) {
                     var path = fromPath(externalWorkspacePath.toRealPath());
+
+                    // Verify this is actually a valid Bazel workspace before trying to use it
+                    if (!isValidBazelWorkspace(path.toPath())) {
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug(
+                                "Path '{}' exists but is not a valid Bazel workspace (no WORKSPACE/MODULE.bazel file): {}",
+                                path,
+                                label);
+                        }
+                        return null;
+                    }
+
                     var externalWorkspace = bazelWorkspace.getExternalWorkspace(path);
                     if (externalWorkspace.exists()) {
                         return externalWorkspace;
@@ -488,6 +539,24 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
 
         LOG.debug("External workspace '{}' not found in current IDE workspace.", externalWorkspaceName);
         return null;
+    }
+
+    /**
+     * Checks if the given path represents a valid Bazel workspace. A valid Bazel workspace must have at least one of
+     * the workspace boundary files (WORKSPACE, WORKSPACE.bazel, MODULE.bazel, or REPO.bazel).
+     *
+     * @param path
+     *            the path to check
+     * @return true if the path is a valid Bazel workspace, false otherwise
+     */
+    private boolean isValidBazelWorkspace(java.nio.file.Path path) {
+        if (!java.nio.file.Files.isDirectory(path)) {
+            return false;
+        }
+
+        // Check for workspace boundary files as defined in BazelWorkspace.WORKSPACE_BOUNDARY_FILES
+        return isRegularFile(path.resolve("MODULE.bazel")) || isRegularFile(path.resolve("REPO.bazel"))
+                || isRegularFile(path.resolve("WORKSPACE.bazel")) || isRegularFile(path.resolve("WORKSPACE"));
     }
 
     private String findProjectMapping(final Label targetLabel) throws CoreException {
