@@ -28,8 +28,10 @@ import static java.util.stream.Collectors.toList;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -43,6 +45,7 @@ import com.google.idea.blaze.base.model.primitives.ExternalWorkspace;
 import com.salesforce.bazel.eclipse.core.projectview.BazelProjectView;
 import com.salesforce.bazel.sdk.BazelVersion;
 import com.salesforce.bazel.sdk.command.BazelBinary;
+import com.salesforce.bazel.sdk.command.BazelCQueryForLabelsCommand;
 import com.salesforce.bazel.sdk.model.BazelLabel;
 
 /**
@@ -63,6 +66,12 @@ import com.salesforce.bazel.sdk.model.BazelLabel;
 public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, BazelModel> {
 
     private static Logger LOG = LoggerFactory.getLogger(BazelWorkspace.class);
+
+    /**
+     * Fallback set of known Bazel built-in repositories, used if dynamic query fails. These repositories are part of
+     * Bazel's internal implementation.
+     */
+    private static final Set<String> FALLBACK_BUILTIN_REPOSITORIES = Set.of("bazel_tools");
 
     /**
      * List of files defining the boundary of a workspace as defined in <a href=
@@ -137,6 +146,11 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
      * external workspaces have a defining workspace
      */
     private final BazelWorkspace definingWorkspace;
+
+    /**
+     * Cached set of Bazel built-in repositories discovered via cquery. Lazily initialized on first access.
+     */
+    private Set<String> builtinRepositories;
 
     /**
      * Creates a new Bazel Workspace at the given path.
@@ -622,5 +636,83 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
 
     Path workspacePath() {
         return root.toPath();
+    }
+
+    /**
+     * Discovers Bazel built-in repositories by querying for toolchain dependencies.
+     * <p>
+     * This method executes a bazel cquery to find all toolchain types used in the project and extracts the repository
+     * names from the results. The discovered repositories are cached for subsequent calls.
+     * </p>
+     *
+     * @return set of built-in repository names (without the @ prefix)
+     */
+    public Set<String> discoverBuiltinRepositories() throws CoreException {
+        // Return cached result if available (fast path, no lock needed)
+        if (builtinRepositories != null) {
+            return builtinRepositories;
+        }
+
+        // Get buildfile_query setting from project view
+        var buildfile_query = this.getBazelProjectView().targetDiscoverySettings().get("buildfile_query");
+        if (buildfile_query == null || buildfile_query.isBlank()) {
+            buildfile_query = "//...";
+        }
+
+
+        // Execute query outside synchronized block to avoid deadlock
+        Set<String> discoveredRepositories = null;
+        try {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Discovering built-in repositories for workspace: {}", this);
+            }
+
+            // Query for toolchain types to discover built-in repositories
+            // Using a broad pattern to capture common source sets
+            var query = "kind(toolchain_type, deps(" + buildfile_query + "))";
+            var command = new BazelCQueryForLabelsCommand(
+                    workspacePath(),
+                    query,
+                    true, // keep going on errors
+                    "Discovering built-in Bazel repositories");
+
+            Collection<String> result = getCommandExecutor().runQueryWithoutLock(command);
+
+            // Extract unique repository names from labels
+            Set<String> repositories = new HashSet<>();
+            for (String label : result) {
+                if (label.startsWith("@")) {
+                    // Extract repository name from label like "@bazel_tools//tools/cpp:toolchain_type"
+                    var endIdx = label.indexOf("//");
+                    if (endIdx > 1) {
+                        var repoName = label.substring(1, endIdx);
+                        // Handle canonical repository names (starting with @@)
+                        if (repoName.startsWith("@")) {
+                            repoName = repoName.substring(1);
+                        }
+                        repositories.add(repoName);
+                    }
+                }
+            }
+
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Discovered {} built-in repositories: {}", repositories.size(), repositories);
+            }
+
+            discoveredRepositories = Set.copyOf(repositories);
+
+        } catch (Exception e) {
+            // If query fails, fall back to known built-in repositories
+            LOG.warn("Failed to discover built-in repositories via cquery, using fallback list: {}", e.getMessage());
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Query error details:", e);
+            }
+            discoveredRepositories = FALLBACK_BUILTIN_REPOSITORIES;
+        }
+
+        if (builtinRepositories == null) {
+            builtinRepositories = discoveredRepositories;
+        }
+        return builtinRepositories;
     }
 }

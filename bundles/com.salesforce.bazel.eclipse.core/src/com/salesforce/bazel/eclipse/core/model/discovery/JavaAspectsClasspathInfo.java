@@ -439,6 +439,19 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
     private BazelWorkspace findExternalWorkspace(Label label) throws CoreException {
 
         var externalWorkspaceName = label.externalWorkspaceName();
+
+        // Skip Bazel built-in repositories - they are not real workspaces and cannot be queried
+        var builtinRepos = bazelWorkspace.discoverBuiltinRepositories();
+        if (builtinRepos.contains(externalWorkspaceName)) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(
+                    "Skipping built-in Bazel repository '{}' - not a real workspace: {}",
+                    externalWorkspaceName,
+                    label);
+            }
+            return null;
+        }
+
         if (externalWorkspaceName.startsWith("@")) {
             // we have a canonical repository name; try to see if it links to workspace in the IDE
             // IJ does similar thing: https://github.com/bazelbuild/intellij/blob/8b64eb559811a803e07bc07c278168f3607c0f50/base/src/com/google/idea/blaze/base/sync/workspace/WorkspaceHelper.java#L169-L184
