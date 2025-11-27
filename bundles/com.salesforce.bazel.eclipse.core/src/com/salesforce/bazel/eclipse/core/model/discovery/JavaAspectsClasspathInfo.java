@@ -475,6 +475,11 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                         var path = forPosix(pathAttribute);
                         if (!path.isAbsolute()) {
                             path = bazelWorkspace.getLocation().append(path);
+                        } else if (bazelWorkspace.getInstallBaseLocation().isPrefixOf(path)) {
+                            // if this is coming from the install base we must ignore it
+                            // fixes https://github.com/eclipseguru/bazel-eclipse/issues/25
+                            return null;
+                            // TODO: should we check for other paths here as well, like output_base? Are those plausible here?
                         }
 
                         // check if path exists but here we expect it to be a proper Bazel workspace (not in output_base/external)

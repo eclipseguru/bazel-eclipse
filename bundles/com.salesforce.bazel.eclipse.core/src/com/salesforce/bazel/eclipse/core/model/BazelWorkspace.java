@@ -481,6 +481,16 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
         return new BazelWorkspace(externalRoot, this);
     }
 
+    /**
+     * {@return absolute file system location to the Bazel install base}
+     *
+     * @throws CoreException
+     *             if the workspace does not exist
+     */
+    public IPath getInstallBaseLocation() throws CoreException {
+        return getInfo().getInstallBase();
+    }
+
     @Override
     public BazelLabel getLabel() {
         // FIXME: the workspace should have a label but which one? @, @//, @name?
