@@ -66,6 +66,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         BAZEL_TESTLOGS("bazel-testlogs"),
         COMMAND_LOG("command_log"),
         OUTPUT_BASE("output_base"),
+        INSTALL_BASE("install_base"),
         OUTPUT_PATH("output_path"),
         STARLARK_SEMANTICS("starlark-semantics");
 
@@ -106,6 +107,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
     private IPath bazelGenfiles;
     private IPath bazelTestlogs;
     private IPath commandLog;
+    private IPath installBase;
     private IPath outputBase;
     private IPath outputPath;
     private String starlarkSemantics;
@@ -266,6 +268,10 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         }
 
         return externalWorkspaceByRepoName.values().stream();
+    }
+
+    public IPath getInstallBase() {
+        return installBase;
     }
 
     public String getName() {
@@ -434,6 +440,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
             bazelGenfiles = getExpectedOutputAsPath(infoResult, BazelInfoKey.BAZEL_GENFILES);
             bazelTestlogs = getExpectedOutputAsPath(infoResult, BazelInfoKey.BAZEL_TESTLOGS);
             commandLog = getExpectedOutputAsPath(infoResult, BazelInfoKey.COMMAND_LOG);
+            installBase = getExpectedOutputAsPath(infoResult, BazelInfoKey.INSTALL_BASE);
             outputBase = getExpectedOutputAsPath(infoResult, BazelInfoKey.OUTPUT_BASE);
             outputPath = getExpectedOutputAsPath(infoResult, BazelInfoKey.OUTPUT_PATH);
             starlarkSemantics = getExpectedOutput(infoResult, BazelInfoKey.STARLARK_SEMANTICS);
@@ -503,6 +510,22 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
         }
     }
 
+    private synchronized Map<String, ExternalWorkspace> loadExternalRepoMappings() throws CoreException {
+        if (externalWorkspaceByRepoName != null) {
+            return externalWorkspaceByRepoName;
+        }
+
+        var workspaceRoot = getWorkspaceFile().getParent();
+
+        var repoMappingCommand =
+                new BazelModDumpRepoMappingCommand(workspaceRoot, "", "Reading bzlmod repository mappings");
+        List<ExternalWorkspace> externalWorkspaces =
+                bazelWorkspace.getCommandExecutor().runQueryWithoutLock(repoMappingCommand);
+
+        return externalWorkspaceByRepoName =
+                externalWorkspaces.stream().collect(toMap(ExternalWorkspace::repoName, Function.identity())); // index by the "repo name" attribute
+    }
+
     private synchronized Map<String, BazelRuleAttributes> loadExternalRepositoryRules() throws CoreException {
         if (externalRepositoryRuleByName != null) {
             return externalRepositoryRuleByName;
@@ -528,21 +551,5 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
                 .map(Target::rule)
                 .map(BazelRuleAttributes::new)
                 .collect(toMap(BazelRuleAttributes::getName, Function.identity())); // index by the "name" attribute
-    }
-
-    private synchronized Map<String, ExternalWorkspace> loadExternalRepoMappings() throws CoreException {
-        if (externalWorkspaceByRepoName != null) {
-            return externalWorkspaceByRepoName;
-        }
-
-        var workspaceRoot = getWorkspaceFile().getParent();
-
-        var repoMappingCommand =
-                new BazelModDumpRepoMappingCommand(workspaceRoot, "", "Reading bzlmod repository mappings");
-        List<ExternalWorkspace> externalWorkspaces =
-                bazelWorkspace.getCommandExecutor().runQueryWithoutLock(repoMappingCommand);
-
-        return externalWorkspaceByRepoName =
-                externalWorkspaces.stream().collect(toMap(ExternalWorkspace::repoName, Function.identity())); // index by the "repo name" attribute
     }
 }
