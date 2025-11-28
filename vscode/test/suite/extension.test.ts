@@ -116,7 +116,7 @@ suite('Java Language Extension - Standard', () => {
 	test('should build workspace without problems within reasonable time', function () {
 		this.timeout(60000 * 5);
 		return Jdtls.buildWorkspace().then((result) => {
-			assert.strictEqual(result, Jdtls.CompileWorkspaceStatus.Succeed);
+			assert.strictEqual(result, Jdtls.CompileWorkspaceStatus.Succeed, `Workspace build failed: ${result}`);
 
 			return Jdtls.getSourcePaths().then(
 				(resp) => {

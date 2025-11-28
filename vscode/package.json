@@ -326,7 +326,7 @@
 		"vscode:prepublish": "run-s clean esbuild:base -- --minify",
 		"build": "run-s clean build:server esbuild:base",
 		"build:server": "node scripts/index.mjs build-or-download",
-		"clean": "npx rimraf out meta.json stats.html *.vsix",
+		"clean": "npx rimraf out meta.json stats.html *.vsix test/result",
 		"esbuild:base": "tsx build.ts",
 		"esbuild:watch": "npm run esbuild:base -- --sourcemap --watch",
 		"analyze": "npm run esbuild:base -- --minify --metafile --analyze && esbuild-visualizer --metadata ./meta.json --open",
