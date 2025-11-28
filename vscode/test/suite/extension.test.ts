@@ -10,7 +10,7 @@ import { Jdtls } from './Jdtls';
 suite('Java Language Extension - Standard', () => {
 	suiteSetup(async function () {
 		try {
-			await extensions.getExtension('sfdc-eng.bazel-java')?.activate();
+			await extensions.getExtension('guw.bazel-eclipse-vscode')?.activate();
 		} catch (e) {
 			console.error(e);
 		}
@@ -18,7 +18,7 @@ suite('Java Language Extension - Standard', () => {
 
 	test('version should be correct', async function () {
 		const api: BazelVscodeExtensionAPI = extensions.getExtension(
-			'sfdc-eng.bazel-java'
+			'guw.bazel-eclipse-vscode'
 		)?.exports;
 
 		assert.ok(api.parseProjectFile !== null);
@@ -29,7 +29,7 @@ suite('Java Language Extension - Standard', () => {
 	});
 
 	test('Bazel Java Extension should be present', () => {
-		assert.ok(vscode.extensions.getExtension('sfdc-eng.bazel-java'));
+		assert.ok(vscode.extensions.getExtension('guw.bazel-eclipse-vscode'));
 	});
 
 	test('RedHat Java Extension should activate', async function () {
@@ -45,7 +45,7 @@ suite('Java Language Extension - Standard', () => {
 
 	test('Bazel Java Extension should activate', async function () {
 		this.timeout(60000 * 2);
-		const ext = vscode.extensions.getExtension('sfdc-eng.bazel-java');
+		const ext = vscode.extensions.getExtension('guw.bazel-eclipse-vscode');
 		while (true) {
 			await setTimeout(5000);
 			if (ext!.isActive) {

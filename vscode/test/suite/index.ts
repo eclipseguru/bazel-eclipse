@@ -4,11 +4,7 @@ import * as path from 'path';
 
 export function run(): Promise<void> {
 	// Create the mocha test
-	const mocha = new Mocha({
-		ui: 'tdd',
-		reporter: 'json',
-		reporterOptions: { output: './test/result/extension.test.json' },
-	});
+	const mocha = new Mocha();
 
 	const testsRoot = path.resolve(__dirname, '..');
 

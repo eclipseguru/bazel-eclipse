@@ -135,12 +135,7 @@ jobs:
         if: always()
         with:
           name: test-results-vscode-${{ matrix.os }}
-          path: |
-            vscode/test/**/*.xml
-            vscode/test/**/*.json
-            !vscode/test/**/tsconfig.json
-            !vscode/test/**/runConfigurations/*.xml
-            !vscode/test/projects/**/*
+          path: vscode/test/result/**/*.*
 
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v5
