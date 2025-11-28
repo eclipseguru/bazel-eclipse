@@ -4,6 +4,7 @@
 
 /* eslint-disable no-underscore-dangle */
 
+import { execSync } from 'child_process';
 import fs from 'fs-extra';
 import { glob } from 'glob';
 import path from 'path';
