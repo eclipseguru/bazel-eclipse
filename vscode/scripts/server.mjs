@@ -86,9 +86,13 @@ async function buildServer() {
     fs.ensureDirSync('./server');
 
     try {
-        const command = `${mvnw()}  clean package -DskipTests=true`;
-        console.log(`Executing: ${command}`);
-        execSync(command, { cwd: serverDir, stdio: [0, 1, 2] });
+        const jdtlsJars = await glob(`${serverDir}/releng/p2repository/target/repository/plugins/com.salesforce.bazel.eclipse.jdtls_*.jar`);
+        if(jdtlsJars.length != 1) {
+            console.log('Building Bazel JDT Language Server extension from source...');
+            const command = `${mvnw()}  clean package -DskipTests=true`;
+            console.log(`Executing: ${command}`);
+            execSync(command, { cwd: serverDir, stdio: [0, 1, 2] });
+        }
 
         const sources = await glob(`${serverDir}/releng/p2repository/target/repository/plugins/*.jar`);
 

@@ -30,6 +30,15 @@ jobs:
     name: Publish Latest VS Code Extension
     runs-on: ubuntu-latest
 
+    # we are very restrictive when this runs, i.e. only on main, only on success and only with the bazel-eclipse repository (not on forks)
+    if: >
+      ( !github.event.workflow_run ||
+        ( github.event.workflow_run.conclusion == 'success' && 
+          github.event.workflow_run.event != 'pull_request' )
+      ) &&
+      github.repository == 'eclipseguru/bazel-eclipse' && 
+      github.ref == 'refs/heads/main'
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -47,8 +56,9 @@ jobs:
       - name: Setup Node version
         uses: actions/setup-node@v6
         with:
-          node-version: 22
           cache: 'npm'
+          cache-dependency-path: 'vscode/package-lock.json'
+          node-version-file: 'vscode/package.json'
 
       - name: 📦 Install dependencies
         run: |
