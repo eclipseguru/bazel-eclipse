@@ -1,0 +1,79 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  publish-latest-update-site:
+    name: Publish Latest Extension # (from main branch only)
+    runs-on: ubuntu-latest
+
+    # we are very restrictive when this runs, i.e. only on main, only on success and only with the bazel-vscode-java repository (not on forks)
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.repository == 'eclipseguru/bazel-vscode-java' &&
+      github.ref == 'refs/heads/main'
+
+    permissions:
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Get Time for BUILD_ID
+        id: time
+        uses: nanzm/get-time-action@v2.0
+        with:
+          format: "YYYYMMDD_HHmm"
+
+      - name: Get Branch name for BUILD_LABEL
+        id: branch_name
+        shell: bash
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 16
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: Download Bazel JDT Language Server extension
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: server
+          path: server
+
+      - name: 🏗 Build project
+        env:
+          BUILD_ID: "${{ steps.time.outputs.time }}"
+          BUILD_TYPE: "S"
+          BUILD_LABEL: "CI ${{ steps.time.outputs.time }} (${{ steps.branch_name.outputs.branch }})"
+        run: npm run build
+
+      - name: Trigger VS Code Extension publish workflow to edge channel
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'publish.yml',
+              ref: 'main',
+              inputs: {
+                releaseChannel: 'edge'
+              }
+            });
+

@@ -1,0 +1,11 @@
+node_modules
+bazel-eclipse
+out
+dist
+.vscode-test/
+*.vsix
+meta.json
+stats.html
+server
+test/result
+*.bazel.lock

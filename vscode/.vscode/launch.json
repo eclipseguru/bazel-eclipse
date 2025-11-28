@@ -1,0 +1,108 @@
+// A launch configuration that compiles the extension and then opens it inside a new window
+// Use IntelliSense to learn about possible attributes.
+// Hover to view descriptions of existing attributes.
+// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Extension - Remote Server",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"env": {
+				"SERVER_PORT": "3333",
+				"DEBUG_VSCODE_JAVA": "true"
+			},
+			"preLaunchTask": "${defaultBuildTask}"
+		},
+		{
+			"name": "Launch Bazel VSCode Java Extension - JDTLS Client",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"debugWebviews": true,
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}"
+			],
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			],
+			"env": {
+				"JDTLS_CLIENT_PORT": "5036",
+				"DEBUG_VSCODE_JAVA": "true",
+			},
+			"preLaunchTask": "npm: watch",
+			"rendererDebugOptions": {
+				"urlFilter": "*redhat.java*",
+				"sourceMaps": true,
+			}
+		},
+		{
+			"name": "Launch Bazel VSCode Java Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"debugWebviews": true,
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}"
+			],
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			],
+			"env": {
+				"DEBUG_VSCODE_JAVA": "true",
+			},
+			"preLaunchTask": "npm: watch",
+			"rendererDebugOptions": {
+				"urlFilter": "*redhat.java*",
+				"sourceMaps": true,
+			}
+		},
+		{
+			"name": "Launch Bazel VSCode WITH RedHat Java Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"debugWebviews": true,
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}",
+				"--extensionDevelopmentPath=${workspaceRoot}/../vscode-java"
+			],
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			],
+			"env": {
+				"DEBUG_VSCODE_JAVA": "true",
+			},
+			"preLaunchTask": "npm: watch",
+			"rendererDebugOptions": {
+				"urlFilter": "*redhat.java*",
+				"sourceMaps": true,
+			}
+		},
+		{
+			"name": "Run Bazel Extension Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--disable-workspace-trust",
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index",
+				"${workspaceFolder}/test/projects/small"
+			],
+			"outFiles": ["${workspaceFolder}/out/test/**/*.js"],
+			"preLaunchTask": "npm: test:compile"
+		}
+	]
+}
