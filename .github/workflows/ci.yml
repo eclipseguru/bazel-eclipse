@@ -76,6 +76,12 @@ jobs:
         
       - name: Setup Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
+        
+      - name: Setup Node version
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'npm'
 
       - name: Print Maven toolchains.xml
         shell: bash
@@ -86,7 +92,7 @@ jobs:
         shell: bash
         run: ./import-and-build.sh
 
-      - name: Build and Test
+      - name: Build and Test Eclipse & JDTLS PLug-in
         uses: coactions/setup-xvfb@v1
         env:
           BUILD_ID: "${{ steps.time.outputs.time }}"
@@ -94,13 +100,50 @@ jobs:
           BUILD_LABEL: "CI ${{ steps.time.outputs.time }} (${{ steps.branch_name.outputs.branch }})"
         with:
           run: ./mvnw --batch-mode --no-transfer-progress --strict-checksums --fail-at-end -update-snapshots --show-version --errors clean verify
+
+      - name: Install Node dependencies
+        working-directory: ./vscode
+        run: npm ci
           
+      - name: Build VS Code Extension
+        working-directory: ./vscode
+        env:
+          BUILD_ID: "${{ steps.time.outputs.time }}"
+          BUILD_TYPE: "S"
+          BUILD_LABEL: "CI ${{ steps.time.outputs.time }} (${{ steps.branch_name.outputs.branch }})"
+        run: npm run build
+
+      - name: Run VS Code Extenion Tests
+        uses: GabrielBB/xvfb-action@v1.7
+        working-directory: ./vscode
+        env:
+          PRINT_JDTLS_LOGS: true
+        with:
+          run: npm run test
+          options: "-screen 0 1600x1200x24"
+
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.os }}
-          path: tests/**/target/surefire-reports/*.xml
+          path: 
+          path: |
+            tests/**/target/surefire-reports/*.xml
+            vscode/test/**/*.xml
+            vscode/test/**/*.json
+            !vscode/test/**/tsconfig.json
+            !vscode/test/**/runConfigurations/*.xml
+            !vscode/test/projects/**/*
+
+      - name: Upload screenshots on failure
+        uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: screenshots-${{ matrix.os }}
+          path: |
+            vscode/test/screenshots
+            vscode/test/logs
 
       - name: Upload p2 Repository
         uses: actions/upload-artifact@v4
@@ -128,6 +171,14 @@ jobs:
           path: |
             releng/products/scip-bazel-ls/target/products/*.tar.gz
             releng/products/scip-bazel-ls/target/products/*.zip
+          if-no-files-found: error
+
+      - name: Upload Bazel JDT Language Server extension
+        uses: actions/upload-artifact@v5
+        if: success() && matrix.os == 'ubuntu-latest'
+        with:
+          name: vscode-server
+          path: vscode/server/
           if-no-files-found: error
 
   event_file:

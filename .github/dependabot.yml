@@ -8,5 +8,5 @@ updates:
     assignees:
       - "guw"
     commit-message:
-      prefix: "Dependabot:"
+      prefix: "Dependabot: "
     open-pull-requests-limit: 2

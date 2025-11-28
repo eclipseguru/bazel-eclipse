@@ -13,7 +13,7 @@ import { downloadFile, getScriptDir, handleError, setupMainExecution } from './u
 
 const dirname = getScriptDir();
 
-const serverDir = path.join(dirname, '..', '..', 'bazel-eclipse');
+const serverDir = path.join(dirname, '..', '..');
 const BAZEL_ECLIPSE_LATEST_URL = 'https://opensource.salesforce.com/bazel-eclipse/latest/p2-repository.zip';
 
 // a little helper to drop OSGi versions from bundle jar file name
