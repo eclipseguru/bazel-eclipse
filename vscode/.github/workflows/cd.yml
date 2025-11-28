@@ -19,7 +19,7 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event != 'pull_request' &&
-      github.repository == 'salesforce/bazel-vscode-java' &&
+      github.repository == 'eclipseguru/bazel-vscode-java' &&
       github.ref == 'refs/heads/main'
 
     permissions:
