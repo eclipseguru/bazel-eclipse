@@ -147,10 +147,12 @@ jobs:
             vscode/test/logs
 
       - name: Prepare packaging of pre-release extension
+        if: success() && matrix.os == 'ubuntu-latest'
         run: node scripts/index.mjs prepare-pre-release
         working-directory: ./vscode
 
       - name: Package VS Code Extension
+        if: success() && matrix.os == 'ubuntu-latest'
         run: npm run package
         working-directory: ./vscode
 
