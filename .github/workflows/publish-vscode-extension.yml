@@ -87,10 +87,10 @@ jobs:
             pat: ${{ secrets.VSC_MKTP_TOKEN }}
             registryUrl: https://marketplace.visualstudio.com
 
-#      - name: 🚀 Publish to Open VSX Registry
-#        uses: HaaLeo/publish-vscode-extension@v2
-#        with:
-#          preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
-#          pat: ${{ secrets.OPEN_VSX_TOKEN }}
-#          extensionFile: ${{ steps.publishToVscMktp.outputs.vsixPath }}
+      - name: 🚀 Publish to Open VSX Registry
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+          extensionFile: ${{ steps.publishToVscMktp.outputs.vsixPath }}
 
