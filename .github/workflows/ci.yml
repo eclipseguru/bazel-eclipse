@@ -166,7 +166,7 @@ jobs:
 
       - name: Upload JDTLS Products
         uses: actions/upload-artifact@v5
-        if: success() && matrix.os == 'ubuntu-latest'
+        if: success() && matrix.os == 'skip-product-upload-for-now'
         with:
           name: jdt-bazel-ls
           path: |
@@ -176,7 +176,7 @@ jobs:
             
       - name: Upload SCIPLS Products
         uses: actions/upload-artifact@v5
-        if: success() && matrix.os == 'ubuntu-latest'
+        if: success() && matrix.os == 'skip-product-upload-for-now'
         with:
           name: scip-bazel-ls
           path: |
