@@ -9,8 +9,8 @@ module.exports = defineConfig([
     mocha: {
       ui: 'tdd',
       timeout: 20000,
-      reporter: 'mochawesome',
-      reporterOptions: { 
+      reporter: 'json',
+      reporterOptions: {
         output: './test/result/extension.test.json',
         reportDir: './test/result',
         reportFilename: "[status]_[datetime]-[name]-report",
