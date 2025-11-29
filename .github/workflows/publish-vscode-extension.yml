@@ -76,7 +76,7 @@ jobs:
         run: npm run vscode:prepublish
 
       - name: 📦 Prepare packaging of pre-release extension
-        if: ${{ github.event.inputs.releaseChannel == 'edge' }}
+        if: ${{ github.event.workflow_run || github.event.inputs.releaseChannel == 'edge' }}
         run: node scripts/index.mjs prepare-pre-release
 
       - name: 🚀 Publish to Visual Studio Marketplace
@@ -84,7 +84,7 @@ jobs:
         id: publishToVscMktp
         with:
           packagePath: ./vscode
-          preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
+          preRelease: ${{ github.event.workflow_run && true || github.event.inputs.releaseChannel == 'edge' && true || false }}
           pat: ${{ secrets.VSC_MKTP_TOKEN }}
           registryUrl: https://marketplace.visualstudio.com
 
@@ -92,7 +92,7 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           packagePath: ./vscode
-          preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
+          preRelease: ${{ github.event.workflow_run && true || github.event.inputs.releaseChannel == 'edge' && true || false }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           extensionFile: ${{ steps.publishToVscMktp.outputs.vsixPath }}
 
