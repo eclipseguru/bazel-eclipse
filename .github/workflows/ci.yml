@@ -106,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: test-results-maven-${{ matrix.os }}
+          name: test-results-${{ matrix.os }}-maven
           path: tests/**/target/surefire-reports/*.xml
 
       - name: Install Node dependencies
@@ -134,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: test-results-vscode-${{ matrix.os }}
+          name: test-results-${{ matrix.os }}-vscode
           path: vscode/test/result/**/*.*
 
       - name: Upload screenshots on failure

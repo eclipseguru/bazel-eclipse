@@ -20,13 +20,28 @@ jobs:
       actions: read
 
     steps:
-      - name: Download and Extract Artifacts
+      - name: Download and Extract run info
         uses: dawidd6/action-download-artifact@v11
         with:
           run_id: ${{ github.event.workflow_run.id }}
-          name: (test-results.*|ci-event-file)
-          name_is_regexp: true
+          name: ci-event-file
           path: artifacts
+
+      - name: Download and Extract Ubuntu test results
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: test-results-ubuntu.*
+          name_is_regexp: true
+          path: artifacts/ubuntu
+
+      - name: Download and Extract MacOS test results
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: test-results-macos.*
+          name_is_regexp: true
+          path: artifacts/macos
 
       - name: 📣 Publish Unit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
@@ -37,6 +52,5 @@ jobs:
           files: |
             artifacts/**/*.xml
             artifacts/**/*.json
-            artifacts/*test.json
-            !artifacts/ci-event-file/event.json
+            !artifacts/**/event.json
 
