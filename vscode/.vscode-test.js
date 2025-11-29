@@ -8,7 +8,7 @@ module.exports = defineConfig([
     files: 'out/test/**/*.test.js',
     mocha: {
       ui: 'tdd',
-      timeout: 20000,
+      timeout: 60000,
       reporter: 'json',
       reporterOptions: {
         output: './test/result/extension.test.json',

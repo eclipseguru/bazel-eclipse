@@ -25,7 +25,7 @@ jobs:
         with:
           run_id: ${{ github.event.workflow_run.id }}
           name: ci-event-file
-          path: artifacts
+          path: artifacts/ci-event-file
 
       - name: Download and Extract Ubuntu test results
         uses: dawidd6/action-download-artifact@v11

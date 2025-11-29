@@ -16,8 +16,8 @@ Contributions and help is still very welcome!
 
 FWIW, I continue to debate with myself whether JDT is the right technology here.
 The main problem is the duplication of work between JDT and Bazel.
-If JDT would not require to generate class files and work mostly from source and an index/database it would be idea.
-Bonus poits if such an index/database could be built by a Bazel aspect and shared via Bazel's remote cache capability.
+If JDT would not require to generate class files and work mostly from source and an index/database it would be ideal.
+Bonus points if such an index/database could be built by a Bazel aspect and shared via Bazel's remote cache capability.
 
 ## BEF: Bazel Eclipse Feature ![BEF Logo](docs/logos/bef_logo_small.png)
 
@@ -35,6 +35,18 @@ This enables IDEs such as [Visual Studio Code](https://code.visualstudio.com/) t
 Full documentation is available here:
 - [Bazel Java Language Server docs](docs/bjls/README.md)
 
+## VS Code & Cursor & Theia: Bazel Extension for VS Code
+
+There is a small VS Code extension including in this repository
+This integrates the language server extension in IDEs such as [Visual Studio Code](https://code.visualstudio.com/), Theia and Cursor.
+The extension is very lightweight and doesn't come with lots of features.
+
+Available at:
+- [Open VSX](https://open-vsx.org/extension/guw/bazel-eclipse-vscode)
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=guw.bazel-eclipse-vscode)
+
+Please note, the VS Code extension was imported from [salesforce/bazel-vscode-java](https://github.com/salesforce/bazel-vscode-java/).
+Hence, its [license](vscode/LICENSE) is different from `bazel-eclipse` and applies to everything with the `vscode` folder.
 
 ## Community, Support and Contributions
 
