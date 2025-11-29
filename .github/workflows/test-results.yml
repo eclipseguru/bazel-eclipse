@@ -37,5 +37,6 @@ jobs:
           files: |
             artifacts/**/*.xml
             artifacts/**/*.json
+            artifacts/*test.json
             !artifacts/ci-event-file/event.json
 
