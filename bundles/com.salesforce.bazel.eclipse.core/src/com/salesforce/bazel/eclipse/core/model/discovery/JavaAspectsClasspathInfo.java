@@ -686,10 +686,14 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
             }
         }
         var bazelPackage = workspace.getBazelPackage(forPosix(targetLabel.blazePackage().relativePath()));
-        var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
-        if (bazelTarget.hasBazelProject() && bazelTarget.getBazelProject().getProject().isAccessible()) {
-            // a direct target match is preferred
-            return newProjectReference(targetLabel, bazelTarget.getBazelProject());
+        var strategy = new TargetDiscoveryAndProvisioningExtensionLookup()
+                .createTargetProvisioningStrategy(bazelWorkspace.getBazelProjectView());
+        if (strategy instanceof ProjectPerTargetProvisioningStrategy) {
+            var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
+            if (bazelTarget.hasBazelProject() && bazelTarget.getBazelProject().getProject().isAccessible()) {
+                // a direct target match is preferred
+                return newProjectReference(targetLabel, bazelTarget.getBazelProject());
+            }
         }
         if (bazelPackage.hasBazelProject() && bazelPackage.getBazelProject().getProject().isAccessible()) {
             // we have to check the target name is part of the enabled project list
@@ -701,7 +705,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                     .anyMatch(t -> t.getTargetName().equals(targetName))) {
                 return newProjectReference(targetLabel, bazelPackage.getBazelProject());
             }
-
+            var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
             // it may be possible that the target is explicitly hidden from IDEs
             // in this case, it won't match in the above condition, however, we still want to make it a project references
             // the reason is that we do expect the project to represent the package adequately

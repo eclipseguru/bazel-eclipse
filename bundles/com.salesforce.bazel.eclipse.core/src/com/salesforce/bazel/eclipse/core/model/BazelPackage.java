@@ -9,12 +9,14 @@ import static java.util.Objects.requireNonNull;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Status;
 
+import com.salesforce.bazel.sdk.command.querylight.Target;
 import com.salesforce.bazel.sdk.model.BazelLabel;
 
 /**
@@ -71,6 +73,7 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
     private final BazelWorkspace parent;
     private final BazelLabel label;
     private final IPath packagePath;
+    private Map<String, Target> targets;
 
     BazelPackage(BazelWorkspace parent, IPath packagePath) throws NullPointerException, IllegalArgumentException {
         this.packagePath =
@@ -86,8 +89,9 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
             throw new CoreException(
                     Status.error(format("Package '%s' does not exist in workspace '%s'!", label, parent.getName())));
         }
-
-        var targets = BazelPackageInfo.queryForTargets(this, getCommandExecutor());
+        if (targets == null) {
+            targets = BazelPackageInfo.queryForTargets(this, getCommandExecutor());
+        }
         return new BazelPackageInfo(buildFile, this, targets);
     }
 
@@ -342,6 +346,10 @@ public final class BazelPackage extends BazelElement<BazelPackageInfo, BazelWork
         invalidateInfo();
         // force re-loading of the project info immediately
         getInfo();
+    }
+
+    public void setTargets(Map<String, Target> targets) {
+        this.targets = targets;
     }
 
 }
