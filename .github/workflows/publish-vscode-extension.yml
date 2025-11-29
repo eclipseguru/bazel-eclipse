@@ -83,13 +83,15 @@ jobs:
         uses: HaaLeo/publish-vscode-extension@v2
         id: publishToVscMktp
         with:
-            preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
-            pat: ${{ secrets.VSC_MKTP_TOKEN }}
-            registryUrl: https://marketplace.visualstudio.com
+          packagePath: ./vscode
+          preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
+          pat: ${{ secrets.VSC_MKTP_TOKEN }}
+          registryUrl: https://marketplace.visualstudio.com
 
       - name: 🚀 Publish to Open VSX Registry
         uses: HaaLeo/publish-vscode-extension@v2
         with:
+          packagePath: ./vscode
           preRelease: ${{ github.event.inputs.releaseChannel == 'edge' && true || false }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           extensionFile: ${{ steps.publishToVscMktp.outputs.vsixPath }}
