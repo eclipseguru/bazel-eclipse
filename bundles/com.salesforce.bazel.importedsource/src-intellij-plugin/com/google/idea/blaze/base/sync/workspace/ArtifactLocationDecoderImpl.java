@@ -15,6 +15,8 @@ package com.google.idea.blaze.base.sync.workspace;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import org.eclipse.core.runtime.Platform;
+
 import com.google.idea.blaze.base.command.buildresult.BlazeArtifact;
 import com.google.idea.blaze.base.command.buildresult.LocalFileOutputArtifact;
 import com.google.idea.blaze.base.command.buildresult.SourceArtifact;
@@ -74,6 +76,9 @@ public final class ArtifactLocationDecoderImpl implements ArtifactLocationDecode
     private BlazeArtifact outputArtifactFromExecRoot(ArtifactLocation location) {
         // exec-root-relative path of the form 'blaze-out/mnemonic/genfiles/path'
         var execRootPath = location.getExecutionRootRelativePath();
+        if (Platform.OS_WIN32.equals(Platform.getOS())) {
+            execRootPath = org.eclipse.core.runtime.Path.fromOSString(execRootPath).toString();
+        }
         var ix1 = execRootPath.indexOf('/');
         var ix2 = execRootPath.indexOf('/', ix1 + 1);
         if (ix2 == -1) {
