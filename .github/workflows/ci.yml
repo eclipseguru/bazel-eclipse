@@ -146,6 +146,14 @@ jobs:
             vscode/test/screenshots
             vscode/test/logs
 
+      - name: Prepare packaging of pre-release extension
+        run: node scripts/index.mjs prepare-pre-release
+        working-directory: ./vscode
+
+      - name: Package VS Code Extension
+        run: npm run package
+        working-directory: ./vscode
+
       - name: Upload p2 Repository
         uses: actions/upload-artifact@v5
         if: success() && matrix.os == 'ubuntu-latest'
@@ -180,6 +188,14 @@ jobs:
         with:
           name: vscode-server
           path: vscode/server/
+          if-no-files-found: error
+
+      - name: Upload VS Code extension
+        uses: actions/upload-artifact@v5
+        if: success() && matrix.os == 'ubuntu-latest'
+        with:
+          name: bazel-eclipse-vscode-extension
+          path: vscode/bazel-eclipse-vscode-*.vsix
           if-no-files-found: error
 
   event_file:
