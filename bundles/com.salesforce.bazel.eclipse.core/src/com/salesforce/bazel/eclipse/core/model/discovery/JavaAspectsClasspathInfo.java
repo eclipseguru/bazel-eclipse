@@ -410,7 +410,13 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
 
         // Collect jars referenced by runtime deps
         for (TargetKey targetKey : runtimeDeps) {
-            var entries = resolveDependency(targetKey);
+            Collection<ClasspathEntry> entries;
+            try {
+                entries = resolveDependency(targetKey);
+            } catch (Exception e) {
+                LOG.error("Error resolving runtime dependency: {}", targetKey, e);
+                continue;
+            }
             var addRuntimeDependencyAsCompileEntry = includeRuntimeDependencyAsProjectCompileDependency(targetKey);
 
             for (ClasspathEntry entry : entries) {

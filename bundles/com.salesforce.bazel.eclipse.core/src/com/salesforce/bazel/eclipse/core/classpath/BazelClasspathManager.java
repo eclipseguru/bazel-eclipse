@@ -347,7 +347,13 @@ public class BazelClasspathManager {
                 : new Path(BazelCoreSharedContstants.CLASSPATH_CONTAINER_ID);
 
         var sourceAttachmentProperties = getSourceAttachmentProperties(javaProject.getProject());
-        var transativeClasspath = classpath.additionalRuntimeEntries().stream().map(ClasspathEntry::build).collect(toList());
+        List<IClasspathEntry> transativeClasspath;
+        try {
+            transativeClasspath = classpath.additionalRuntimeEntries().stream().map(ClasspathEntry::build).collect(toList());
+        } catch (Exception e) {
+            LOG.error("Error configuring classpath for project '{}': {}", javaProject.getElementName(), e.getMessage(), e);
+            return;
+        }
 
         var container = new BazelClasspathContainer(
                 path,

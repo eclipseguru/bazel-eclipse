@@ -618,15 +618,29 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
         // open all closed projects
         var targetsByPackage = queryForTargets(this, closedPackages, getCommandExecutor());
         for (BazelPackage bazelPackage : closedPackages) {
+            if (bazelPackage.hasInfo()) {
+                continue;
+            }
+
             var targets = targetsByPackage.get(bazelPackage);
             if (targets == null) {
                 LOG.debug("Empty package: '{}'", bazelPackage);
                 targets = Collections.emptyMap();
             }
-            if (!bazelPackage.hasInfo()) {
-                // getting the info loads the package avoiding unnecessary double loads
-                bazelPackage.getInfo();
+
+            // Find the BUILD file for this package
+            var buildFile = bazelPackage.findBuildFile();
+            if (buildFile == null) {
+                LOG.warn("Package '{}' does not have a BUILD file, skipping", bazelPackage.getLabel());
+                continue;
             }
+
+            // Create PackageInfo directly with the batched query results
+            var packageInfo = new BazelPackageInfo(buildFile, bazelPackage, targets);
+
+            // Inject into cache without triggering createInfo() or Job scheduling
+            // This uses openIfNecessary which atomically stores the info if not already present
+            bazelPackage.openIfNecessary(packageInfo);
         }
     }
 
