@@ -17,6 +17,7 @@ package com.salesforce.bazel.eclipse.core.model.discovery;
 import static java.lang.String.format;
 import static java.nio.file.Files.isReadable;
 import static java.util.stream.Collectors.toList;
+import static org.eclipse.core.runtime.IPath.forPosix;
 import static org.eclipse.core.runtime.IPath.fromPath;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ import com.salesforce.bazel.eclipse.core.util.jar.SourceJarFinder;
 import com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects;
 import com.salesforce.bazel.sdk.aspects.intellij.IntellijAspects.OutputGroup;
 import com.salesforce.bazel.sdk.command.BazelBuildWithIntelliJAspectsCommand;
+import com.salesforce.bazel.sdk.model.BazelLabel;
 
 /**
  * Index of information extracted from aspects output for re-use during classpath computation
@@ -165,6 +167,17 @@ public class JavaAspectsInfo extends JavaClasspathJarLocationResolver {
                         if (LOG.isDebugEnabled()) {
                             LOG.debug(
                                 "Unable to compute target label for runtime jar '{}'. Please check if the rule producing the jar is adding the Target-Label to the jar manifest!",
+                                classJar);
+                        }
+                        targetLabel = Label.create(format("@_unknown_jar_//:%s", classJar.getRelativePath()));
+                    } else if (!targetLabel.isExternal()
+                            && !bazelWorkspace.getBazelPackage(new BazelLabel(targetLabel.toString())).exists()) {
+                        // possibly an external jar produced within an external repo 
+                        // see https://github.com/eclipseguru/bazel-eclipse/issues/34
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug(
+                                "The target '{}' of the runtime JAR file '{}' does not exist in the workspace.",
+                                targetLabel,
                                 classJar);
                         }
                         targetLabel = Label.create(format("@_unknown_jar_//:%s", classJar.getRelativePath()));
