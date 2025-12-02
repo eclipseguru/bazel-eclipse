@@ -295,7 +295,7 @@ public class JavaProjectInfo {
         // handle absolute labels first
         var mayBeAbsoluteLaybel = Label.createIfValid(relativeOrAbsoluteLabel);
         if (mayBeAbsoluteLaybel != null) {
-            return new LabelEntry(new BazelLabel(mayBeAbsoluteLaybel.toString()));
+            return new LabelEntry(new BazelLabel(mayBeAbsoluteLaybel));
         }
         // treat as relative label
         return new LabelEntry(bazelPackage.getBazelTarget(relativeOrAbsoluteLabel).getLabel());

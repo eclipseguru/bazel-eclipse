@@ -1196,7 +1196,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
         monitor.subTask("Loading packages");
         var bazelPackages = targetsOrPackages.parallelStream().map(e -> {
             if (e instanceof Label l) {
-                return new BazelLabel(l.toString());
+                return new BazelLabel(l);
             }
             var w = WildcardTargetPattern.stripWildcardSuffix(e.toString());
             if (w != null) {
@@ -1212,7 +1212,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
         for (TargetExpression targetExpression : targetsOrPackages) {
             if (targetExpression instanceof Label l) {
                 // we don't check for no-ide tag here because we assume this was done already when discovering targets
-                targets.add(workspace.getBazelTarget(new BazelLabel(l.toString())));
+                targets.add(workspace.getBazelTarget(new BazelLabel(l)));
             } else {
                 LOG.warn(
                     "Ignoring target expression '{}' for provisioning because this is not supported by the current implementation.",

@@ -55,7 +55,6 @@
         <setEntry value="com.github.ben-manes.caffeine@default:default"/>
         <setEntry value="com.google.errorprone.annotations@default:default"/>
         <setEntry value="com.google.gson@default:default"/>
-        <setEntry value="com.google.guava*32.1.2.jre@default:default"/>
         <setEntry value="com.google.guava.failureaccess@default:default"/>
         <setEntry value="com.googlecode.json-simple@default:default"/>
         <setEntry value="com.ibm.icu@default:default"/>
@@ -63,14 +62,8 @@
         <setEntry value="com.sun.jna.platform@default:default"/>
         <setEntry value="com.sun.jna@default:default"/>
         <setEntry value="jakarta.activation-api@default:default"/>
-        <setEntry value="jakarta.activation@default:default"/>
-        <setEntry value="jakarta.mail-api@default:default"/>
-        <setEntry value="jakarta.servlet-api*4.0.0@default:default"/>
-        <setEntry value="jakarta.servlet-api*5.0.0@default:default"/>
+        <setEntry value="jakarta.servlet-api@default:default"/>
         <setEntry value="javax.activation@default:default"/>
-        <setEntry value="javax.annotation@default:default"/>
-        <setEntry value="javax.inject@default:default"/>
-        <setEntry value="javax.xml@default:default"/>
         <setEntry value="jaxen@default:default"/>
         <setEntry value="junit-jupiter-api@default:default"/>
         <setEntry value="junit-jupiter-engine@default:default"/>
@@ -93,10 +86,8 @@
         <setEntry value="org.apache.batik.i18n@default:default"/>
         <setEntry value="org.apache.batik.util@default:default"/>
         <setEntry value="org.apache.commons.cli@default:default"/>
-        <setEntry value="org.apache.commons.codec@default:default"/>
         <setEntry value="org.apache.commons.commons-codec@default:default"/>
         <setEntry value="org.apache.commons.io@default:default"/>
-        <setEntry value="org.apache.commons.jxpath@default:default"/>
         <setEntry value="org.apache.commons.logging@default:default"/>
         <setEntry value="org.apache.felix.gogo.command@default:default"/>
         <setEntry value="org.apache.felix.gogo.runtime@default:default"/>
@@ -107,8 +98,6 @@
         <setEntry value="org.apache.xml.resolver@default:default"/>
         <setEntry value="org.apache.xmlgraphics@default:default"/>
         <setEntry value="org.apiguardian.api@default:default"/>
-        <setEntry value="org.codehaus.janino.commons-compiler@default:default"/>
-        <setEntry value="org.codehaus.janino.janino@default:default"/>
         <setEntry value="org.eclipse.ant.core@default:default"/>
         <setEntry value="org.eclipse.ant.optional.junit@default:false"/>
         <setEntry value="org.eclipse.compare.core@default:default"/>
@@ -180,7 +169,7 @@
         <setEntry value="org.eclipse.equinox.transforms.hook@default:false"/>
         <setEntry value="org.eclipse.equinox.weaving.hook@default:false"/>
         <setEntry value="org.eclipse.help@default:default"/>
-        <setEntry value="org.eclipse.jdt.annotation*2.2.700.v20220826-1026@default:default"/>
+        <setEntry value="org.eclipse.jdt.annotation@default:default"/>
         <setEntry value="org.eclipse.jdt.core.compiler.batch@default:default"/>
         <setEntry value="org.eclipse.jdt.core@default:default"/>
         <setEntry value="org.eclipse.jdt.debug@default:default"/>
@@ -197,7 +186,6 @@
         <setEntry value="org.eclipse.osgi.util@default:default"/>
         <setEntry value="org.eclipse.osgi@1:true"/>
         <setEntry value="org.eclipse.pde.junit.runtime@default:default"/>
-        <setEntry value="org.eclipse.swt.cocoa.macosx.x86_64@default:false"/>
         <setEntry value="org.eclipse.swt@default:default"/>
         <setEntry value="org.eclipse.team.core@default:default"/>
         <setEntry value="org.eclipse.text@default:default"/>
@@ -219,7 +207,6 @@
         <setEntry value="org.eclipse.wst.sse.core@default:default"/>
         <setEntry value="org.eclipse.wst.xml.core@default:default"/>
         <setEntry value="org.fusesource.jansi@default:default"/>
-        <setEntry value="org.hamcrest.core@default:default"/>
         <setEntry value="org.hamcrest@default:default"/>
         <setEntry value="org.jdom2@default:default"/>
         <setEntry value="org.jsr-305@default:default"/>
@@ -249,15 +236,8 @@
         <setEntry value="org.osgi.util.promise@default:default"/>
         <setEntry value="org.osgi.util.xml@default:default"/>
         <setEntry value="org.tukaani.xz@default:default"/>
-        <setEntry value="org.w3c.css.sac@default:default"/>
-        <setEntry value="org.w3c.dom.events@default:default"/>
-        <setEntry value="org.w3c.dom.smil@default:default"/>
-        <setEntry value="org.w3c.dom.svg@default:default"/>
         <setEntry value="slf4j.api@default:default"/>
         <setEntry value="wrapped.com.google.auto.value.auto-value-annotations@default:default"/>
-        <setEntry value="wrapped.com.google.errorprone.error_prone_annotations@default:default"/>
-        <setEntry value="wrapped.com.google.protobuf.protobuf-java@default:default"/>
-        <setEntry value="wrapped.junit.junit@default:default"/>
     </setAttribute>
     <setAttribute key="selected_workspace_bundles">
         <setEntry value="com.salesforce.bazel.eclipse.core.tests@default:false"/>
@@ -265,13 +245,13 @@
         <setEntry value="com.salesforce.bazel.importedsource.tests@default:false"/>
         <setEntry value="com.salesforce.bazel.importedsource@default:default"/>
         <setEntry value="com.salesforce.bazel.logback@default:false"/>
+        <setEntry value="com.salesforce.bazel.scipls@default:default"/>
         <setEntry value="com.salesforce.bazel.sdk.tests@default:false"/>
         <setEntry value="com.salesforce.bazel.sdk@default:default"/>
-        <setEntry value="com.salesforce.productivity.eclipse.sfdc.bazelextension@default:default"/>
         <setEntry value="testdata@default:default"/>
     </setAttribute>
     <booleanAttribute key="show_selected_only" value="false"/>
-    <stringAttribute key="timestamp" value="1696498066115"/>
+    <stringAttribute key="timestamp" value="1764659995812"/>
     <booleanAttribute key="tracing" value="false"/>
     <booleanAttribute key="useCustomFeatures" value="false"/>
     <booleanAttribute key="useDefaultConfig" value="true"/>

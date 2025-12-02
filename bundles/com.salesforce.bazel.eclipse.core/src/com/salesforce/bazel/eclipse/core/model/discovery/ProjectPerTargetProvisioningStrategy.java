@@ -2,7 +2,6 @@ package com.salesforce.bazel.eclipse.core.model.discovery;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
-import static org.eclipse.core.runtime.IPath.forPosix;
 import static org.eclipse.core.runtime.SubMonitor.SUPPRESS_ALL_LABELS;
 
 import java.util.ArrayList;
@@ -28,7 +27,6 @@ import com.salesforce.bazel.eclipse.core.classpath.CompileAndRuntimeClasspath;
 import com.salesforce.bazel.eclipse.core.model.BazelPackage;
 import com.salesforce.bazel.eclipse.core.model.BazelProject;
 import com.salesforce.bazel.eclipse.core.model.BazelTarget;
-import com.salesforce.bazel.eclipse.core.model.BazelPackage;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspaceBlazeInfo;
 import com.salesforce.bazel.eclipse.core.util.trace.TracingSubMonitor;
@@ -58,6 +56,78 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
     public static final String STRATEGY_NAME = "project-per-target";
 
     private static final String PROJECT_NAME_FORMAT = "project_name_format";
+
+    /**
+     * Helper method to add a BazelPackage for a given label to the collection. Safely handles external packages and
+     * packages that may not exist in the workspace.
+     */
+    private void addPackageForLabel(Label label, BazelWorkspace workspace, Set<BazelPackage> packages) {
+        // Skip external packages as they may not have corresponding workspace packages
+        if (label.isExternal()) {
+            LOG.trace("Skipping external label: {}", label);
+            return;
+        }
+
+        var bazelPackage = workspace.getBazelPackage(new BazelLabel(label));
+
+        // Only add if the package exists and is accessible
+        if (!bazelPackage.exists()) {
+            LOG.trace("Skipping non-existing package label: {}", label);
+            return;
+        }
+
+        packages.add(bazelPackage);
+    }
+
+    /**
+     * Collects all BazelPackages that are referenced by the dependencies of the given projects. This is used for
+     * performance optimization - by pre-loading these packages in batch, we avoid repeated individual Bazel query
+     * commands during classpath resolution.
+     *
+     * @param bazelProjects
+     *            the projects whose dependencies should be analyzed
+     * @param aspectsInfo
+     *            the aspects information containing dependency data
+     * @param workspace
+     *            the Bazel workspace
+     * @return set of BazelPackages to pre-load
+     * @throws CoreException
+     */
+    private Set<BazelPackage> collectDependencyPackages(Collection<BazelProject> bazelProjects,
+            JavaAspectsInfo aspectsInfo, BazelWorkspace workspace) throws CoreException {
+        Set<BazelPackage> packages = new HashSet<>();
+
+        for (BazelProject bazelProject : bazelProjects) {
+            // Skip projects that don't have a proper target yet
+            if (!bazelProject.isTargetProject()) {
+                LOG.trace("Skipping project {} - not a target project or target is null", bazelProject.getName());
+                continue;
+            }
+
+            // Collect all dependency labels from the aspects info
+            var targetKey = TargetKey.forPlainTarget(bazelProject.getBazelTarget().getLabel().toPrimitive());
+            var targetInfo = aspectsInfo.get(targetKey);
+
+            if (targetInfo != null) {
+                // Collect packages from direct dependencies
+                for (var dep : targetInfo.getDependencies()) {
+                    addPackageForLabel(dep.getTargetKey().getLabel(), workspace, packages);
+                }
+
+                // Collect packages from runtime dependencies
+                var runtimeClasspath = aspectsInfo.getRuntimeClasspath(targetKey);
+                if (runtimeClasspath != null) {
+                    for (var jar : runtimeClasspath) {
+                        if (jar.targetKey != null) {
+                            addPackageForLabel(jar.targetKey.getLabel(), workspace, packages);
+                        }
+                    }
+                }
+            }
+        }
+
+        return packages;
+    }
 
     @Override
     public Map<BazelProject, CompileAndRuntimeClasspath> computeClasspaths(Collection<BazelProject> bazelProjects,
@@ -266,78 +336,6 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
 
         // this call is no longer expected to fail now (unless we need to poke the element info cache manually here)
         return target.getBazelProject();
-    }
-
-    /**
-     * Collects all BazelPackages that are referenced by the dependencies of the given projects. This is used for
-     * performance optimization - by pre-loading these packages in batch, we avoid repeated individual Bazel query
-     * commands during classpath resolution.
-     *
-     * @param bazelProjects
-     *            the projects whose dependencies should be analyzed
-     * @param aspectsInfo
-     *            the aspects information containing dependency data
-     * @param workspace
-     *            the Bazel workspace
-     * @return set of BazelPackages to pre-load
-     * @throws CoreException
-     */
-    private Set<BazelPackage> collectDependencyPackages(Collection<BazelProject> bazelProjects,
-            JavaAspectsInfo aspectsInfo, BazelWorkspace workspace) throws CoreException {
-        Set<BazelPackage> packages = new HashSet<>();
-
-        for (BazelProject bazelProject : bazelProjects) {
-            // Skip projects that don't have a proper target yet
-            if (!bazelProject.isTargetProject()) {
-                LOG.trace("Skipping project {} - not a target project or target is null", bazelProject.getName());
-                continue;
-            }
-
-            // Collect all dependency labels from the aspects info
-            var targetKey = TargetKey.forPlainTarget(bazelProject.getBazelTarget().getLabel().toPrimitive());
-            var targetInfo = aspectsInfo.get(targetKey);
-
-            if (targetInfo != null) {
-                // Collect packages from direct dependencies
-                for (var dep : targetInfo.getDependencies()) {
-                    addPackageForLabel(dep.getTargetKey().getLabel(), workspace, packages);
-                }
-
-                // Collect packages from runtime dependencies
-                var runtimeClasspath = aspectsInfo.getRuntimeClasspath(targetKey);
-                if (runtimeClasspath != null) {
-                    for (var jar : runtimeClasspath) {
-                        if (jar.targetKey != null) {
-                            addPackageForLabel(jar.targetKey.getLabel(), workspace, packages);
-                        }
-                    }
-                }
-            }
-        }
-
-        return packages;
-    }
-
-    /**
-     * Helper method to add a BazelPackage for a given label to the collection. Safely handles external packages and
-     * packages that may not exist in the workspace.
-     */
-    private void addPackageForLabel(Label label, BazelWorkspace workspace, Set<BazelPackage> packages) {
-        // Skip external packages as they may not have corresponding workspace packages
-        if (label.isExternal()) {
-            LOG.trace("Skipping external label: {}", label);
-            return;
-        }
-
-        var packagePath = forPosix(label.blazePackage().relativePath());
-        var bazelPackage = workspace.getBazelPackage(packagePath);
-
-        // Only add if the package exists and is accessible
-        if (bazelPackage.exists()) {
-            packages.add(bazelPackage);
-            LOG.trace("Added package for label {}: {}", label, packagePath);
-        }
-
     }
 
 }
