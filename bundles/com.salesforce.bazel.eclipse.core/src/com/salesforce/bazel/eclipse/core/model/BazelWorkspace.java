@@ -17,22 +17,25 @@ import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_N
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_REPO_BAZEL;
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_WORKSPACE;
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.FILE_NAME_WORKSPACE_BAZEL;
-import static com.salesforce.bazel.eclipse.core.model.BazelPackageInfo.queryForTargets;
 import static java.lang.String.format;
 import static java.nio.file.Files.isDirectory;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Status;
@@ -43,6 +46,8 @@ import com.google.idea.blaze.base.model.primitives.ExternalWorkspace;
 import com.salesforce.bazel.eclipse.core.projectview.BazelProjectView;
 import com.salesforce.bazel.sdk.BazelVersion;
 import com.salesforce.bazel.sdk.command.BazelBinary;
+import com.salesforce.bazel.sdk.command.BazelQueryForTargetProtoCommand;
+import com.salesforce.bazel.sdk.command.querylight.Target;
 import com.salesforce.bazel.sdk.model.BazelLabel;
 
 /**
@@ -216,6 +221,11 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
     public boolean exists() {
         var path = workspacePath();
         return isDirectory(path) && (findWorkspaceFile(path) != null);
+    }
+
+    public IProject findProject(BazelPackage bazelPackage) throws CoreException {
+        var info = bazelPackage.getBazelWorkspace().getInfo();
+        return info.getProject(bazelPackage.getLabel());
     }
 
     /**
@@ -616,7 +626,7 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
         }
 
         // open all closed projects
-        var targetsByPackage = queryForTargets(this, closedPackages, getCommandExecutor());
+        var targetsByPackage = queryForTargetsWithDependencies(this, closedPackages, getCommandExecutor());
         for (BazelPackage bazelPackage : closedPackages) {
             if (bazelPackage.hasInfo()) {
                 continue;
@@ -634,6 +644,11 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
                 LOG.warn("Package '{}' does not have a BUILD file, skipping", bazelPackage.getLabel());
                 continue;
             }
+            bazelPackage.setTargets(targets);
+            if (!bazelPackage.hasInfo()) {
+                // getting the info loads the package avoiding unnecessary double loads
+                bazelPackage.getInfo();
+            }
 
             // Create PackageInfo directly with the batched query results
             var packageInfo = new BazelPackageInfo(buildFile, bazelPackage, targets);
@@ -644,7 +659,77 @@ public final class BazelWorkspace extends BazelElement<BazelWorkspaceInfo, Bazel
         }
     }
 
+    public Map<BazelPackage, Map<String, Target>> queryForTargetsWithDependencies(BazelWorkspace bazelWorkspace,
+            Collection<BazelPackage> bazelPackages, BazelElementCommandExecutor bazelElementCommandExecutor)
+            throws CoreException {
+        // bazel query 'kind(rule, deps(//foo:all + //bar:all))"'
+
+        if (bazelPackages.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        var workspaceRoot = bazelWorkspace.getLocation().toPath();
+        var query = bazelPackages.stream()
+                .map(bazelPackage -> format("//%s:all", bazelPackage.getWorkspaceRelativePath()))
+                .collect(joining(" + "));
+
+        Map<String, BazelPackage> bazelPackageByWorkspaceRelativePath = new HashMap<>();
+        bazelPackages.stream()
+                .forEach(p -> bazelPackageByWorkspaceRelativePath.put(p.getWorkspaceRelativePath().toString(), p));
+
+        query = "kind(rule, deps(" + query + "))";
+        Map<BazelPackage, Map<String, Target>> result = new HashMap<>();
+        LOG.debug("{}: querying Bazel for list of targets from: {}", bazelWorkspace, query);
+        var queryResult = bazelElementCommandExecutor.runQueryWithoutLock(
+            new BazelQueryForTargetProtoCommand(
+                    workspaceRoot,
+                    query,
+                    true /* keep going */,
+                    List.of("--noproto:locations", "--noproto:default_values", "--noimplicit_deps", "--notool_deps"),
+                    format(
+                        "Loading targets for %d %s",
+                        bazelPackages.size(),
+                        bazelPackages.size() == 1 ? "package" : "packages")));
+        for (Target target : queryResult) {
+            if (!target.hasRule()) {
+                LOG.trace("{}: ignoring target: {}", bazelWorkspace, target);
+                System.out.println();
+                continue;
+            }
+
+            try {
+                BazelLabel.validateLabelPath(target.rule().name(), true);
+            } catch (Exception e) {
+                LOG.trace("{}: ignoring target: {}", bazelWorkspace, target);
+                continue;
+            }
+            LOG.trace("{}: found target: {}", bazelWorkspace, target);
+            var targetLabel = new BazelLabel(target.rule().name());
+
+            var bazelPackage = bazelPackageByWorkspaceRelativePath.get(targetLabel.getPackagePath());
+            if (bazelPackage == null) {
+                // LOG.debug("{}: ignoring target for unknown package: {}", bazelWorkspace, targetLabel);
+                // continue;
+                var packageLabel = targetLabel.getPackageLabel();
+                if (bazelWorkspace.isRootedAtThisWorkspace(packageLabel)) {
+                    bazelPackage = bazelWorkspace.getBazelPackage(packageLabel);
+                }
+            }
+            if (bazelPackage == null) {
+                LOG.debug("{}: ignoring target for unknown package: {}", bazelWorkspace, targetLabel);
+                continue;
+            }
+            if (!result.containsKey(bazelPackage)) {
+                result.put(bazelPackage, new HashMap<>());
+            }
+
+            var targetName = targetLabel.getTargetName();
+            result.get(bazelPackage).put(targetName, target);
+        }
+        return result;
+    }
+
     Path workspacePath() {
         return root.toPath();
     }
+
 }

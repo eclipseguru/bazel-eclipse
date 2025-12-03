@@ -13,9 +13,6 @@
  */
 package com.salesforce.bazel.eclipse.core.model;
 
-import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.BAZEL_NATURE_ID;
-import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasOwnerPropertySetForLabel;
-import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasWorkspaceRootPropertySetToLocation;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -46,26 +43,14 @@ public final class BazelTargetInfo extends BazelElementInfo {
      * @throws CoreException
      */
     static IProject findProject(BazelTarget bazelTarget) throws CoreException {
-        var workspaceRoot = bazelTarget.getBazelWorkspace().getLocation();
-        // we don't care about the actual project name - we look for the property
-        var projects = getEclipseWorkspaceRoot().getProjects();
-        for (IProject project : projects) {
-            if (project.isAccessible() // is open
-                    && project.hasNature(BAZEL_NATURE_ID) // is a Bazel project
-                    && hasWorkspaceRootPropertySetToLocation(project, workspaceRoot) // belongs to the workspace root
-                    && hasOwnerPropertySetForLabel(project, bazelTarget.getLabel()) // represents the target
-            ) {
-                return project;
-            }
-        }
-
-        return null;
+        var bazelWorkspace = bazelTarget.getBazelWorkspace();
+        return bazelWorkspace.getInfo().getProject(bazelTarget.getLabel());
     }
 
     private final BazelTarget bazelTarget;
     private final String targetName;
     private final Target target;
-    private final BazelProject bazelProject;
+    private BazelProject bazelProject;
     private volatile BazelRuleAttributes ruleAttributes;
 
     private List<IPath> ruleOutput;
@@ -86,18 +71,15 @@ public final class BazelTargetInfo extends BazelElementInfo {
                             getTargetName(),
                             packageInfo.getBazelPackage().getLabel())));
         }
+    }
 
+    public BazelProject getBazelProject() throws CoreException {
         // find project is expensive, do it only once when loading a package
         // (https://github.com/eclipseguru/bazel-eclipse/issues/8)
         var project = findProject(bazelTarget);
         if (project != null) {
             bazelProject = new BazelProject(project, bazelTarget.getModel());
-        } else {
-            bazelProject = null;
         }
-    }
-
-    public BazelProject getBazelProject() throws CoreException {
         if (bazelProject != null) {
             return bazelProject;
         }

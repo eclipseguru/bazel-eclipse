@@ -19,6 +19,7 @@ import static java.util.stream.Collectors.toList;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map.Entry;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ public final class CaffeineBasedBazelElementInfoCache extends BazelElementInfoCa
 
     private static final String CACHE_KEY_SEPARATOR = "::";
     private static final String EMPTY_STRING = "";
+
     private final Cache<String, BazelElementInfo> cache;
 
     /**
@@ -159,5 +161,11 @@ public final class CaffeineBasedBazelElementInfoCache extends BazelElementInfoCa
     @Override
     public <I extends BazelElementInfo> I putOrGetCached(BazelElement<I, ?> bazelElement, I info) {
         return (I) cache.get(getStableCacheKey(bazelElement), k -> info);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <I extends BazelElementInfo> I putOrGetCached(BazelElement<I, ?> bazelElement, Supplier<I> supplier) {
+        return (I) cache.get(getStableCacheKey(bazelElement), k -> supplier.get());
     }
 }

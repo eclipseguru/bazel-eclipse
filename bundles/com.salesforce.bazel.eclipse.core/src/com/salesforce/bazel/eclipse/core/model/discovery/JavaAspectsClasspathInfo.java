@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.core.resources.IWorkspaceRoot;
@@ -61,6 +62,7 @@ import com.google.idea.blaze.java.sync.importer.ExecutionPathHelper;
 import com.google.idea.blaze.java.sync.model.BlazeJarLibrary;
 import com.salesforce.bazel.eclipse.core.classpath.CompileAndRuntimeClasspath;
 import com.salesforce.bazel.eclipse.core.classpath.CompileAndRuntimeClasspath.Builder;
+import com.salesforce.bazel.eclipse.core.model.BazelPackage;
 import com.salesforce.bazel.eclipse.core.model.BazelProject;
 import com.salesforce.bazel.eclipse.core.model.BazelTarget;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
@@ -68,6 +70,7 @@ import com.salesforce.bazel.eclipse.core.model.discovery.classpath.AccessRule;
 import com.salesforce.bazel.eclipse.core.model.discovery.classpath.ClasspathEntry;
 import com.salesforce.bazel.sdk.command.BazelBuildWithIntelliJAspectsCommand;
 import com.salesforce.bazel.sdk.command.querylight.BazelRuleAttribute;
+import com.salesforce.bazel.sdk.command.querylight.Target;
 import com.salesforce.bazel.sdk.model.BazelLabel;
 
 /**
@@ -331,6 +334,11 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
      * @throws CoreException
      */
     public CompileAndRuntimeClasspath compute() throws CoreException {
+        return compute(null);
+    }
+
+    public CompileAndRuntimeClasspath compute(Map<BazelPackage, Map<String, Target>> targetsByPackage)
+            throws CoreException {
         // the code below is copied and adapted from BlazeJavaWorkspaceImporter
 
         var classpathBuilder = new Builder();
@@ -359,7 +367,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                 var targetKey = targetLabel != null ? TargetKey.forPlainTarget(targetLabel) : null;
                 library = new BlazeJarLibrary(libraryArtifact, targetKey);
             }
-            var entry = resolveLibrary(library);
+            var entry = resolveLibrary(library, targetsByPackage);
             if (entry != null) {
                 if (!validateEntry(entry)) {
                     continue;
@@ -400,7 +408,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
 
         // Collect jars referenced by direct deps
         for (TargetKey targetKey : directDeps) {
-            var entries = resolveDependency(targetKey);
+            var entries = resolveDependency(targetKey, targetsByPackage);
             for (ClasspathEntry entry : entries) {
                 if (validateEntry(entry)) {
                     classpathBuilder.addCompileEntry(entry);
@@ -410,7 +418,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
 
         // Collect jars referenced by runtime deps
         for (TargetKey targetKey : runtimeDeps) {
-            var entries = resolveDependency(targetKey);
+            var entries = resolveDependency(targetKey, targetsByPackage);
             var addRuntimeDependencyAsCompileEntry = includeRuntimeDependencyAsProjectCompileDependency(targetKey);
 
             for (ClasspathEntry entry : entries) {
@@ -585,8 +593,9 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         return (dep.getKind() == Deps.Dependency.Kind.EXPLICIT) || (dep.getKind() == Deps.Dependency.Kind.IMPLICIT);
     }
 
-    protected Collection<ClasspathEntry> resolveDependency(TargetKey targetKey) throws CoreException {
-        var projectEntry = resolveProject(targetKey);
+    protected Collection<ClasspathEntry> resolveDependency(TargetKey targetKey,
+            Map<BazelPackage, Map<String, Target>> targetsByPackage) throws CoreException {
+        var projectEntry = resolveProject(targetKey, targetsByPackage);
         if (projectEntry != null) {
             return Set.of(projectEntry);
         }
@@ -623,10 +632,11 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         return locationDecoder.resolveOutput(javaIdeInfo.getJdepsFile());
     }
 
-    private ClasspathEntry resolveLibrary(BlazeJarLibrary library) throws CoreException {
+    private ClasspathEntry resolveLibrary(BlazeJarLibrary library,
+            Map<BazelPackage, Map<String, Target>> targetsByPackage) throws CoreException {
         // find project in workspace if possible
         if (library.targetKey != null) {
-            var projectEntry = resolveProject(library.targetKey);
+            var projectEntry = resolveProject(library.targetKey, targetsByPackage);
             if (projectEntry != null) {
                 return projectEntry;
             }
@@ -636,7 +646,8 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         return resolveJar(library.libraryArtifact);
     }
 
-    private ClasspathEntry resolveProject(final Label targetLabel) throws CoreException {
+    private ClasspathEntry resolveProject(final Label targetLabel,
+            Map<BazelPackage, Map<String, Target>> targetsByPackage) throws CoreException {
         var workspace = bazelWorkspace;
 
         // check for project mapping (it trumps everything)
@@ -686,10 +697,18 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
             }
         }
         var bazelPackage = workspace.getBazelPackage(forPosix(targetLabel.blazePackage().relativePath()));
-        var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
-        if (bazelTarget.hasBazelProject() && bazelTarget.getBazelProject().getProject().isAccessible()) {
-            // a direct target match is preferred
-            return newProjectReference(targetLabel, bazelTarget.getBazelProject());
+        if (targetsByPackage != null) {
+            var targets = targetsByPackage.get(bazelPackage);
+            bazelPackage.setTargets(targets);
+        }
+        var strategy = new TargetDiscoveryAndProvisioningExtensionLookup()
+                .createTargetProvisioningStrategy(bazelWorkspace.getBazelProjectView());
+        if (strategy instanceof ProjectPerTargetProvisioningStrategy) {
+            var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
+            if (bazelTarget.hasBazelProject() && bazelTarget.getBazelProject().getProject().isAccessible()) {
+                // a direct target match is preferred
+                return newProjectReference(targetLabel, bazelTarget.getBazelProject());
+            }
         }
         if (bazelPackage.hasBazelProject() && bazelPackage.getBazelProject().getProject().isAccessible()) {
             // we have to check the target name is part of the enabled project list
@@ -701,7 +720,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
                     .anyMatch(t -> t.getTargetName().equals(targetName))) {
                 return newProjectReference(targetLabel, bazelPackage.getBazelProject());
             }
-
+            var bazelTarget = bazelPackage.getBazelTarget(targetLabel.targetName().toString());
             // it may be possible that the target is explicitly hidden from IDEs
             // in this case, it won't match in the above condition, however, we still want to make it a project references
             // the reason is that we do expect the project to represent the package adequately
@@ -715,12 +734,13 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         return null;
     }
 
-    protected ClasspathEntry resolveProject(TargetKey targetKey) throws CoreException {
+    protected ClasspathEntry resolveProject(TargetKey targetKey,
+            Map<BazelPackage, Map<String, Target>> targetsByPackage) throws CoreException {
         if (!targetKey.isPlainTarget()) {
             return null;
         }
 
-        return resolveProject(targetKey.getLabel());
+        return resolveProject(targetKey.getLabel(), targetsByPackage);
     }
 
     /**

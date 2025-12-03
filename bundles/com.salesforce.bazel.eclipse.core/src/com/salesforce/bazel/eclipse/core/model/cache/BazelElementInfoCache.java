@@ -14,6 +14,7 @@
 package com.salesforce.bazel.eclipse.core.model.cache;
 
 import java.util.Collection;
+import java.util.function.Supplier;
 
 import com.salesforce.bazel.eclipse.core.model.BazelElement;
 import com.salesforce.bazel.eclipse.core.model.BazelElementInfo;
@@ -112,4 +113,13 @@ public abstract sealed class BazelElementInfoCache permits CaffeineBasedBazelEle
      *            the element info (must not be <code>null</code>)
      */
     public abstract <I extends BazelElementInfo> I putOrGetCached(BazelElement<I, ?> bazelElement, I info);
+
+    /**
+     * @param <I>
+     * @param bazelElement
+     * @param supplier
+     * @return
+     */
+    public abstract <I extends BazelElementInfo> I putOrGetCached(BazelElement<I, ?> bazelElement,
+            Supplier<I> supplier);
 }

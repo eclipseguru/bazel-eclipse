@@ -332,7 +332,7 @@ public class ProjectPerTargetProvisioningStrategy extends BaseProvisioningStrate
         var projectLocation = getFileSystemMapper().getProjectsArea().append(projectName);
 
         createProjectForElement(projectName, projectLocation, target, monitor);
-        target.rediscoverBazelProject();
+        // target.rediscoverBazelProject();
 
         // this call is no longer expected to fail now (unless we need to poke the element info cache manually here)
         return target.getBazelProject();
