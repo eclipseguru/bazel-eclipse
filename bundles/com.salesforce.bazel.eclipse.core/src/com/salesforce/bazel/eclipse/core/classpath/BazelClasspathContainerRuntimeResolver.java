@@ -114,14 +114,20 @@ public class BazelClasspathContainerRuntimeResolver
      *
      * @param resolvedClasspath
      *            the resolved classpath
-     * @param sourceProject
+     * @param projectToResolve
      *            the project reference
      * @throws CoreException
      *             in case of problems
      */
-    private void populateWithResolvedProject(Collection<IRuntimeClasspathEntry> resolvedClasspath,
-            IProject sourceProject) throws CoreException {
-        var javaProject = JavaCore.create(sourceProject);
+    private void populateWithResolvedProject(LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath,
+            IProject projectToResolve, Set<IProject> stackOfResolvingProjects) throws CoreException {
+        var javaProject = JavaCore.create(projectToResolve);
+
+        // performance: use a saved container for Bazel projects if possible
+        // (discovered in https://github.com/eclipseguru/bazel-eclipse/issues/37)
+        if (populateWithSavedContainer(javaProject, resolvedClasspath, stackOfResolvingProjects)) {
+            return; // we are done
+        }
 
         // never exclude test code because we use it for runtime dependencies as well
         final var excludeTestCode = false;
@@ -135,45 +141,67 @@ public class BazelClasspathContainerRuntimeResolver
         }
     }
 
-    private void populateWithSavedContainer(IJavaProject project,
-            LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath, Set<IProject> processedProjects)
+    /**
+     * Populates the resolved classpath with entries from the saved Bazel classpath container and ensures they are all
+     * fully resolved.
+     *
+     * @param project
+     *            the project whose saved container should be used
+     * @param resolvedClasspath
+     *            the resolved classpath to populate
+     * @param stackOfResolvingProjects
+     *            the stack of currently resolving projects to avoid cycles
+     * @return <code>true</code> if a saved container was found and used, <code>false</code> otherwise
+     * @throws CoreException
+     */
+    private boolean populateWithSavedContainer(IJavaProject project,
+            LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath, Set<IProject> stackOfResolvingProjects)
             throws CoreException {
         var bazelContainer = getClasspathManager().getSavedContainer(project.getProject());
-        if (bazelContainer != null) {
-            var workspaceRoot = project.getResource().getWorkspace().getRoot();
-            var entries = bazelContainer.getFullClasspath();
-            for (IClasspathEntry e : entries) {
-                switch (e.getEntryKind()) {
-                    case IClasspathEntry.CPE_PROJECT: {
-                        // projects need to be resolved properly so we have all the output folders and exported jars on the classpath
-                        var sourceProject = workspaceRoot.getProject(e.getPath().segment(0));
-                        if (processedProjects.add(sourceProject)) {
-                            // only resolve and add the projects if it was never attempted before
-                            populateWithResolvedProject(resolvedClasspath, sourceProject);
-                        } else if (LOG.isDebugEnabled()) {
-                            LOG.debug(
-                                "Skipping recursive resolution attempt for project '{}' in thread '{}' ({})",
-                                sourceProject,
-                                Thread.currentThread().getName(),
-                                processedProjects.stream().map(IProject::getName).collect(joining(" > ")));
-                        }
-                        break;
+        if (bazelContainer == null) {
+            // nothing available
+            return false;
+        }
+
+        var workspaceRoot = project.getResource().getWorkspace().getRoot();
+        var entries = bazelContainer.getFullClasspath();
+        for (IClasspathEntry e : entries) {
+            switch (e.getEntryKind()) {
+                case IClasspathEntry.CPE_PROJECT: {
+                    // projects need to be resolved properly so we have all the output folders and exported jars on the classpath
+                    var sourceProject = workspaceRoot.getProject(e.getPath().segment(0));
+                    if (stackOfResolvingProjects.add(sourceProject)) {
+                        // only resolve and add the projects if it was never attempted before
+                        populateWithResolvedProject(resolvedClasspath, sourceProject, stackOfResolvingProjects);
+
+                        // remove from stack again when done resolving
+                        stackOfResolvingProjects.remove(sourceProject);
+                    } else if (LOG.isDebugEnabled()) {
+                        // this should not happen in theory because Bazel is an acyclic graph as well as Eclipse doesn't like it but who knows...
+                        LOG.debug(
+                            "Skipping recursive resolution attempt for project '{}' in thread '{}' ({})",
+                            sourceProject,
+                            Thread.currentThread().getName(),
+                            stackOfResolvingProjects.stream().map(IProject::getName).collect(joining(" > ")));
                     }
-                    case IClasspathEntry.CPE_LIBRARY: {
-                        // we can rely on the assumption that this is an absolute path pointing into Bazel's execroot
-                        // but we have to exclude ijars from runtime
-                        populateWithRealJar(resolvedClasspath, e);
-                        break;
-                    }
-                    default:
-                        throw new CoreException(
-                                Status.error(
-                                    format(
-                                        "Unexpected classpath entry in the persisted Bazel container. Try refreshing the classpath or report as bug. %s",
-                                        e)));
+                    break;
                 }
+                case IClasspathEntry.CPE_LIBRARY: {
+                    // we can rely on the assumption that this is an absolute path pointing into Bazel's execroot
+                    // but we have to exclude ijars from runtime
+                    populateWithRealJar(resolvedClasspath, e);
+                    break;
+                }
+                default:
+                    throw new CoreException(
+                            Status.error(
+                                format(
+                                    "Unexpected classpath entry in the persisted Bazel container. Try refreshing the classpath or report as bug. %s",
+                                    e)));
             }
         }
+
+        return true;
     }
 
     @Override
@@ -208,7 +236,7 @@ public class BazelClasspathContainerRuntimeResolver
                 var bazelProjects = bazelProject.getBazelWorkspace().getBazelProjects();
                 for (BazelProject sourceProject : bazelProjects) {
                     if (!sourceProject.isWorkspaceProject()) {
-                        populateWithResolvedProject(result, sourceProject.getProject());
+                        populateWithResolvedProject(result, sourceProject.getProject(), currentlyResolvingProjects);
                     }
                 }
             }
