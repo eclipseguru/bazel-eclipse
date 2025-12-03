@@ -17,7 +17,6 @@ package com.salesforce.bazel.eclipse.core.model.discovery;
 import static java.lang.String.format;
 import static java.nio.file.Files.isReadable;
 import static java.util.stream.Collectors.toList;
-import static org.eclipse.core.runtime.IPath.forPosix;
 import static org.eclipse.core.runtime.IPath.fromPath;
 
 import java.io.IOException;
@@ -171,8 +170,8 @@ public class JavaAspectsInfo extends JavaClasspathJarLocationResolver {
                         }
                         targetLabel = Label.create(format("@_unknown_jar_//:%s", classJar.getRelativePath()));
                     } else if (!targetLabel.isExternal()
-                            && !bazelWorkspace.getBazelPackage(new BazelLabel(targetLabel.toString())).exists()) {
-                        // possibly an external jar produced within an external repo 
+                            && !bazelWorkspace.getBazelPackage(new BazelLabel(targetLabel)).exists()) {
+                        // possibly an external jar produced within an external repo
                         // see https://github.com/eclipseguru/bazel-eclipse/issues/34
                         if (LOG.isDebugEnabled()) {
                             LOG.debug(

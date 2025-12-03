@@ -205,6 +205,27 @@ public class BazelLabel {
     private final String repositoryName;
 
     /**
+     * Creates a new label instance from a primitive Bazel {@link Label}.
+     * <p>
+     * The label is created as is, no validation is performed.
+     * </p>
+     *
+     * @param label
+     *            the primitive {@link Label}
+     */
+    public BazelLabel(Label label) {
+        if (label.isExternal()) {
+            repositoryName = label.externalWorkspaceName();
+        } else {
+            repositoryName = null;
+        }
+        var blazePackage = label.blazePackage();
+        var targetName = label.targetName().toString();
+        localLabelPart = blazePackage.relativePath() + BAZEL_COLON + targetName;
+        fullLabel = getFullLabelPath(repositoryName, localLabelPart);
+    }
+
+    /**
      * A BazelLabel instance can be created with any syntactically valid Bazel Label String.
      * </p>
      * Examples:<br>

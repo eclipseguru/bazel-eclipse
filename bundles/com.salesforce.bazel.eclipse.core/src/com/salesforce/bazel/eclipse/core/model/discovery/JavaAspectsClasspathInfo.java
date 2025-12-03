@@ -536,7 +536,7 @@ public class JavaAspectsClasspathInfo extends JavaClasspathJarLocationResolver {
         }
 
         // only include when it is in the allow list
-        return runtimeDependencyIncludes.contains(new BazelLabel(targetKey.getLabel().toString()));
+        return runtimeDependencyIncludes.contains(new BazelLabel(targetKey.getLabel()));
     }
 
     private List<JdepsDependency> loadJdeps(TargetIdeInfo targetIdeInfo) throws CoreException {
