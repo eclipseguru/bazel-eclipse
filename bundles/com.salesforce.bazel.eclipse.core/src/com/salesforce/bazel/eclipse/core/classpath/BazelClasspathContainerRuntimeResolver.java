@@ -149,7 +149,17 @@ public class BazelClasspathContainerRuntimeResolver
                         var sourceProject = workspaceRoot.getProject(e.getPath().segment(0));
                         if (processedProjects.add(sourceProject)) {
                             // only resolve and add the projects if it was never attempted before
-                            populateWithResolvedProject(resolvedClasspath, sourceProject);
+                            // For Bazel projects, check if they have a saved container and use it directly
+                            // to avoid expensive computeUnresolvedRuntimeClasspath calls
+                            var sourceJavaProject = JavaCore.create(sourceProject);
+                            var sourceBazelContainer = getClasspathManager().getSavedContainer(sourceProject);
+                            if (sourceBazelContainer != null) {
+                                // Bazel project: recursively populate using its saved container
+                                populateWithSavedContainer(sourceJavaProject, resolvedClasspath, processedProjects);
+                            } else {
+                                // Non-Bazel project: fall back to standard Eclipse resolution
+                                populateWithResolvedProject(resolvedClasspath, sourceProject);
+                            }
                         } else if (LOG.isDebugEnabled()) {
                             LOG.debug(
                                 "Skipping recursive resolution attempt for project '{}' in thread '{}' ({})",
