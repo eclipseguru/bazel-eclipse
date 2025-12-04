@@ -6,10 +6,8 @@ package com.salesforce.bazel.eclipse.core.classpath;
 import static java.lang.String.format;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Arrays.stream;
-import static java.util.stream.Collectors.joining;
 import static org.eclipse.jdt.launching.JavaRuntime.computeUnresolvedRuntimeClasspath;
 
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -41,16 +39,65 @@ import com.salesforce.bazel.eclipse.core.util.trace.StopWatch;
 public class BazelClasspathContainerRuntimeResolver
         implements IRuntimeClasspathEntryResolver, IRuntimeClasspathEntryResolver2 {
 
+    /**
+     * Thre resolution context is an optimization. It captures state during the resolution of a container with the goal
+     * to improve efficiency and performance.
+     */
+    private static final class ContainerResolutionContext {
+        /**
+         * the resolved classpath entries (in insertion order, no duplicates)
+         */
+        private final LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath = new LinkedHashSet<>();
+        /**
+         * the current resolution stack deepness
+         */
+        private int currentDepth = 0;
+        /**
+         * the set of already processed projects to avoid duplicate work
+         */
+        private final Set<IProject> processedProjects = new LinkedHashSet<>();
+
+        public void add(IRuntimeClasspathEntry runtimeClasspathEntry) {
+            resolvedClasspath.add(runtimeClasspathEntry);
+        }
+
+        /**
+         * @param project
+         *            the project being resolved
+         * @return <code>true</code> if the project was never processed before, <code>false</code> otherwise
+         */
+        public boolean beginResolvingProject(IProject project) {
+            currentDepth++;
+            return processedProjects.add(project);
+        }
+
+        public void endResolvingProject(IProject project) {
+            if (currentDepth == 0) {
+                throw new IllegalStateException("Mismatched begin/end resolving project calls");
+            }
+
+            currentDepth--;
+        }
+
+        public IRuntimeClasspathEntry[] getResolvedClasspath() {
+            return resolvedClasspath.toArray(new IRuntimeClasspathEntry[resolvedClasspath.size()]);
+        }
+
+        public boolean isDoneProcessingProjects() {
+            return currentDepth == 0;
+        }
+    }
+
     private static final Logger LOG = LoggerFactory.getLogger(BazelClasspathContainerRuntimeResolver.class);
 
     /**
-     * Stack of currently resolving projects in container entries. Used to avoid cycles in project dependencies when
-     * resolving classpath container entries.
+     * The current thread's resolution context. Used to avoid cycles in project dependencies when resolving classpath
+     * container entries.
      *
      * @see org.eclipse.jdt.launching.JavaRuntime.fgProjects (for similar implementation)
      */
-    private static final ThreadLocal<LinkedHashSet<IProject>> stackOfResolvingProjects =
-            ThreadLocal.withInitial(LinkedHashSet::new);
+    private static final ThreadLocal<ContainerResolutionContext> currentThreadResolutionContet =
+            ThreadLocal.withInitial(ContainerResolutionContext::new);
 
     private static String extractRealJarName(String jarName) {
         // copied (and adapted) from BlazeJavaWorkspaceImporter
@@ -76,7 +123,7 @@ public class BazelClasspathContainerRuntimeResolver
         return false;
     }
 
-    private void populateWithRealJar(Collection<IRuntimeClasspathEntry> resolvedClasspath, IClasspathEntry e) {
+    private void populateWithRealJar(ContainerResolutionContext resolutionContext, IClasspathEntry e) {
         var jarPath = e.getPath();
         var jarName = extractRealJarName(jarPath.lastSegment());
         if (!jarName.equals(jarPath.lastSegment())) {
@@ -107,27 +154,27 @@ public class BazelClasspathContainerRuntimeResolver
             e = JavaCore.newLibraryEntry(realJarPath, e.getSourceAttachmentPath(), e.getSourceAttachmentRootPath());
         }
 
-        resolvedClasspath.add(new RuntimeClasspathEntry(e));
+        resolutionContext.add(new RuntimeClasspathEntry(e));
     }
 
     /**
      * Resolves a project classpath reference into all possible output folders and transitives and adds it to the
      * resolved classpath.
      *
-     * @param resolvedClasspath
-     *            the resolved classpath
      * @param projectToResolve
      *            the project reference
+     * @param resolutionContext
+     *            the resolution context
      * @throws CoreException
      *             in case of problems
      */
-    private void populateWithResolvedProject(LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath,
-            IProject projectToResolve, Set<IProject> stackOfResolvingProjects) throws CoreException {
+    private void populateWithResolvedProject(IProject projectToResolve, ContainerResolutionContext resolutionContext)
+            throws CoreException {
         var javaProject = JavaCore.create(projectToResolve);
 
         // performance: use a saved container for Bazel projects if possible
         // (discovered in https://github.com/eclipseguru/bazel-eclipse/issues/37)
-        if (populateWithSavedContainer(javaProject, resolvedClasspath, stackOfResolvingProjects)) {
+        if (populateWithSavedContainer(javaProject, resolutionContext)) {
             return; // we are done
         }
 
@@ -146,7 +193,7 @@ public class BazelClasspathContainerRuntimeResolver
         for (IRuntimeClasspathEntry unresolvedEntry : unresolvedRuntimeClasspath) {
             // resolve and add
             stream(JavaRuntime.resolveRuntimeClasspathEntry(unresolvedEntry, javaProject, excludeTestCode))
-                    .forEach(resolvedClasspath::add);
+                    .forEach(resolutionContext::add);
         }
     }
 
@@ -156,15 +203,12 @@ public class BazelClasspathContainerRuntimeResolver
      *
      * @param project
      *            the project whose saved container should be used
-     * @param resolvedClasspath
-     *            the resolved classpath to populate
-     * @param stackOfResolvingProjects
-     *            the stack of currently resolving projects to avoid cycles
+     * @param resolutionContext
+     *            the resolution context
      * @return <code>true</code> if a saved container was found and used, <code>false</code> otherwise
      * @throws CoreException
      */
-    private boolean populateWithSavedContainer(IJavaProject project,
-            LinkedHashSet<IRuntimeClasspathEntry> resolvedClasspath, Set<IProject> stackOfResolvingProjects)
+    private boolean populateWithSavedContainer(IJavaProject project, ContainerResolutionContext resolutionContext)
             throws CoreException {
         var bazelContainer = getClasspathManager().getSavedContainer(project.getProject());
         if (bazelContainer == null) {
@@ -175,11 +219,9 @@ public class BazelClasspathContainerRuntimeResolver
 
         if (LOG.isDebugEnabled()) {
             LOG.debug(
-                "{} Populating classpath with saved container of project '{}' (thread '{}', stack {})",
-                stackOfResolvingProjects.stream().map(p -> "").collect(joining(" ")),
+                "Populating classpath with saved container of project '{}' (thread '{}')",
                 project.getProject().getName(),
-                Thread.currentThread().getName(),
-                stackOfResolvingProjects.stream().map(IProject::getName).collect(joining(" > ")));
+                Thread.currentThread().getName());
         }
 
         var workspaceRoot = project.getResource().getWorkspace().getRoot();
@@ -189,26 +231,27 @@ public class BazelClasspathContainerRuntimeResolver
                 case IClasspathEntry.CPE_PROJECT: {
                     // projects need to be resolved properly so we have all the output folders and exported jars on the classpath
                     var sourceProject = workspaceRoot.getProject(e.getPath().segment(0));
-                    if (stackOfResolvingProjects.add(sourceProject)) {
-                        // only resolve and add the projects if it was never attempted before
-                        populateWithResolvedProject(resolvedClasspath, sourceProject, stackOfResolvingProjects);
-
-                        // remove from stack again when done resolving
-                        stackOfResolvingProjects.remove(sourceProject);
+                    if (resolutionContext.beginResolvingProject(sourceProject)) {
+                        try {
+                            // only resolve and add the projects if it was never attempted before
+                            populateWithResolvedProject(sourceProject, resolutionContext);
+                        } finally {
+                            // remove from stack again when done resolving
+                            resolutionContext.endResolvingProject(sourceProject);
+                        }
                     } else if (LOG.isDebugEnabled()) {
                         // this should not happen in theory because Bazel is an acyclic graph as well as Eclipse doesn't like it but who knows...
                         LOG.debug(
                             "Skipping recursive resolution attempt for project '{}' in thread '{}' ({})",
                             sourceProject,
-                            Thread.currentThread().getName(),
-                            stackOfResolvingProjects.stream().map(IProject::getName).collect(joining(" > ")));
+                            Thread.currentThread().getName());
                     }
                     break;
                 }
                 case IClasspathEntry.CPE_LIBRARY: {
                     // we can rely on the assumption that this is an absolute path pointing into Bazel's execroot
                     // but we have to exclude ijars from runtime
-                    populateWithRealJar(resolvedClasspath, e);
+                    populateWithRealJar(resolutionContext, e);
                     break;
                 }
                 default:
@@ -242,19 +285,23 @@ public class BazelClasspathContainerRuntimeResolver
                 project.getProject().getName());
         }
 
-        var stopWatch = StopWatch.startNewStopWatch();
-
         // this method can be entered recursively; luckily only within the same thread
         // therefore we use a ThreadLocal LinkedHashSet to keep track of recursive attempts
-        var currentlyResolvingProjects = stackOfResolvingProjects.get();
-        currentlyResolvingProjects.add(project.getProject());
-        try {
-            var result = new LinkedHashSet<IRuntimeClasspathEntry>(); // insertion order is important but avoid duplicates
+        var resolutionContext = currentThreadResolutionContet.get();
+        if (!resolutionContext.beginResolvingProject(project.getProject())) {
+            LOG.warn(
+                "Detected recursive resolution attempt for project '{}' in thread '{}' ({})",
+                project.getProject().getName(),
+                Thread.currentThread().getName());
+            return new IRuntimeClasspathEntry[0];
+        }
 
+        var stopWatch = StopWatch.startNewStopWatch();
+        try {
             // try the saved container
             // this is usually ok because we no longer use the ijars on project classpaths
             // the saved container also contains all runtime dependencies by default
-            populateWithSavedContainer(project, result, currentlyResolvingProjects);
+            populateWithSavedContainer(project, resolutionContext);
 
             var bazelProject = BazelCore.create(project.getProject());
             if (bazelProject.isWorkspaceProject()) {
@@ -264,16 +311,17 @@ public class BazelClasspathContainerRuntimeResolver
                 var bazelProjects = bazelProject.getBazelWorkspace().getBazelProjects();
                 for (BazelProject sourceProject : bazelProjects) {
                     if (!sourceProject.isWorkspaceProject()) {
-                        populateWithResolvedProject(result, sourceProject.getProject(), currentlyResolvingProjects);
+                        populateWithResolvedProject(sourceProject.getProject(), resolutionContext);
                     }
                 }
             }
 
-            return result.toArray(new IRuntimeClasspathEntry[result.size()]);
+            return resolutionContext.getResolvedClasspath();
         } finally {
-            currentlyResolvingProjects.remove(project.getProject());
-            if (currentlyResolvingProjects.isEmpty()) {
-                stackOfResolvingProjects.remove();
+            resolutionContext.endResolvingProject(project.getProject());
+
+            if (resolutionContext.isDoneProcessingProjects()) {
+                currentThreadResolutionContet.remove();
             }
 
             stopWatch.stop();
