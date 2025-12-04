@@ -12,6 +12,7 @@ import static org.eclipse.jdt.launching.JavaRuntime.computeUnresolvedRuntimeClas
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -34,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import com.salesforce.bazel.eclipse.core.BazelCore;
 import com.salesforce.bazel.eclipse.core.BazelCorePlugin;
 import com.salesforce.bazel.eclipse.core.model.BazelProject;
+import com.salesforce.bazel.eclipse.core.util.trace.StopWatch;
 
 @SuppressWarnings("restriction")
 public class BazelClasspathContainerRuntimeResolver
@@ -129,6 +131,13 @@ public class BazelClasspathContainerRuntimeResolver
             return; // we are done
         }
 
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                "No saved container found. Resolving project reference '{}' (thread '{}')",
+                projectToResolve.getName(),
+                Thread.currentThread().getName());
+        }
+
         // never exclude test code because we use it for runtime dependencies as well
         final var excludeTestCode = false;
 
@@ -160,7 +169,17 @@ public class BazelClasspathContainerRuntimeResolver
         var bazelContainer = getClasspathManager().getSavedContainer(project.getProject());
         if (bazelContainer == null) {
             // nothing available
+            LOG.debug("No saved Bazel classpath container found for project '{}'", project.getProject().getName());
             return false;
+        }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                "{} Populating classpath with saved container of project '{}' (thread '{}', stack {})",
+                stackOfResolvingProjects.stream().map(p -> "").collect(joining(" ")),
+                project.getProject().getName(),
+                Thread.currentThread().getName(),
+                stackOfResolvingProjects.stream().map(IProject::getName).collect(joining(" > ")));
         }
 
         var workspaceRoot = project.getResource().getWorkspace().getRoot();
@@ -216,6 +235,15 @@ public class BazelClasspathContainerRuntimeResolver
             return new IRuntimeClasspathEntry[0];
         }
 
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(
+                "Classpath entry resolution request in thread '{}' for Bazel container in project '{}'",
+                Thread.currentThread().getName(),
+                project.getProject().getName());
+        }
+
+        var stopWatch = StopWatch.startNewStopWatch();
+
         // this method can be entered recursively; luckily only within the same thread
         // therefore we use a ThreadLocal LinkedHashSet to keep track of recursive attempts
         var currentlyResolvingProjects = stackOfResolvingProjects.get();
@@ -230,7 +258,7 @@ public class BazelClasspathContainerRuntimeResolver
 
             var bazelProject = BazelCore.create(project.getProject());
             if (bazelProject.isWorkspaceProject()) {
-                // when debugging the workspace project we include all target/package projects automatically
+                // when debugging/launching in the workspace project we include all target/package projects automatically
                 // this is odd because the projects should cause cyclic dependencies
                 // however it is convenient with source code lookups for missing dependencies
                 var bazelProjects = bazelProject.getBazelWorkspace().getBazelProjects();
@@ -242,11 +270,19 @@ public class BazelClasspathContainerRuntimeResolver
             }
 
             return result.toArray(new IRuntimeClasspathEntry[result.size()]);
-
         } finally {
             currentlyResolvingProjects.remove(project.getProject());
             if (currentlyResolvingProjects.isEmpty()) {
                 stackOfResolvingProjects.remove();
+            }
+
+            stopWatch.stop();
+
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(
+                    "Resolved Bazel classpath container for project '{}' in {}ms",
+                    project.getProject().getName(),
+                    stopWatch.getDuration(TimeUnit.MILLISECONDS));
             }
         }
     }
