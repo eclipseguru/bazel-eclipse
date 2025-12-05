@@ -296,6 +296,7 @@ public class BazelClasspathContainerRuntimeResolver
             return new IRuntimeClasspathEntry[0];
         }
 
+        var isTopLevelResolution = resolutionContext.currentDepth == 0;
         var stopWatch = StopWatch.startNewStopWatch();
         try {
             // try the saved container
@@ -320,8 +321,16 @@ public class BazelClasspathContainerRuntimeResolver
         } finally {
             resolutionContext.endResolvingProject(project.getProject());
 
-            if (resolutionContext.isDoneProcessingProjects()) {
+            if (isTopLevelResolution) {
+                // clean up thread local when we are done with the top-level resolution
                 currentThreadResolutionContet.remove();
+
+                if (!resolutionContext.isDoneProcessingProjects()) {
+                    LOG.error(
+                        "Resolution context for thread '{}' is not fully ended after top-level resolution of project '{}' was done. There are missing start/end calls. Please report as bug.",
+                        Thread.currentThread().getName(),
+                        project.getProject().getName());
+                }
             }
 
             stopWatch.stop();
