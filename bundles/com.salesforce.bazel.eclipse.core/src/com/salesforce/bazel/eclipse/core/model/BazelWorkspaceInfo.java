@@ -231,7 +231,14 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
     }
 
     private IPath getExpectedOutputAsPath(Map<String, String> infoResult, BazelInfoKey key) throws CoreException {
-        return new org.eclipse.core.runtime.Path(getExpectedOutput(infoResult, key));
+        var expectedOutput = getExpectedOutput(infoResult, key);
+        try {
+            var out = Path.of(expectedOutput).toRealPath();
+            expectedOutput = out.toString();
+        } catch (IOException e) {
+            LOG.error(e.getMessage(), e);
+        }
+        return org.eclipse.core.runtime.Path.fromOSString(expectedOutput);
     }
 
     public Stream<BazelRuleAttributes> getExternalRepositoriesByRuleClass(Predicate<String> ruleClassPredicate)
