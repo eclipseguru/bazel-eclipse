@@ -34,6 +34,10 @@ public final class StopWatch {
         void stopped(StopWatch stopWatch);
     }
 
+    public static StopWatch startNewStopWatch() {
+        return new StopWatch().start();
+    }
+
     private final StopCallback stopCallback;
     private volatile long startTimeNanos;
     private volatile long endTimeNanos;
@@ -75,9 +79,12 @@ public final class StopWatch {
 
     /**
      * Sets the start time to the current value of {@link System#nanoTime()}.
+     *
+     * @return this stop watch instance for convenience
      */
-    public void start() {
+    public StopWatch start() {
         startTimeNanos = System.nanoTime();
+        return this;
     }
 
     /**
