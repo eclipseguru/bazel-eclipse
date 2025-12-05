@@ -8,6 +8,7 @@ import static java.nio.file.Files.isRegularFile;
 import static java.util.Arrays.stream;
 import static org.eclipse.jdt.launching.JavaRuntime.computeUnresolvedRuntimeClasspath;
 
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +56,7 @@ public class BazelClasspathContainerRuntimeResolver
         /**
          * the set of already processed projects to avoid duplicate work
          */
-        private final Set<IProject> processedProjects = new LinkedHashSet<>();
+        private final Set<IProject> processedProjects = new HashSet<>();
 
         public void add(IRuntimeClasspathEntry runtimeClasspathEntry) {
             resolvedClasspath.add(runtimeClasspathEntry);
