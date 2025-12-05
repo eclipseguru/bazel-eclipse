@@ -74,7 +74,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
     @Override
     public Map<BazelProject, CompileAndRuntimeClasspath> computeClasspaths(Collection<BazelProject> bazelProjects,
             BazelWorkspace workspace, BazelClasspathScope scope, IProgressMonitor progress) throws CoreException {
-        LOG.debug("Computing classpath for projects: {}", bazelProjects);
+        LOG.debug("Computing classpath for {} projects.", bazelProjects.size());
         try {
             var monitor =
                     TracingSubMonitor.convert(progress, "Computing Bazel project classpaths", 1 + bazelProjects.size());
@@ -141,9 +141,16 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
 
             // run the build per shard
             var currentShardCount = 0;
+            Set<BazelPackage> packages = activeTargetsPerProject.values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .map(BazelTarget::getBazelPackage)
+                    .filter(bp -> bp != null)
+                    .collect(Collectors.toSet());
+            var targetsByPackage =
+                    workspace.queryForTargetsWithDependencies(workspace, packages, workspace.getCommandExecutor());
             for (Map<BazelProject, Collection<BazelTarget>> shard : shardsToBuild) {
                 currentShardCount++;
-
                 var targetsToBuild = shard.values()
                         .stream()
                         .flatMap(Collection::stream)
@@ -173,7 +180,6 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                             command,
                             shard.keySet().stream().map(BazelProject::getProject).collect(toList()),
                             monitor.slice(3));
-
                 // populate map from result
                 var subMonitor = monitor.split(
                     2,
@@ -200,6 +206,10 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                         activeTargetsPerProject.get(bazelProject),
                         () -> format("programming error: not targets for project: %s", bazelProject));
                     for (BazelTarget target : projectTargets) {
+                        var bazelPackage = target.getBazelPackage();
+                        if (bazelPackage != null) {
+                            bazelPackage.setTargets(targetsByPackage.get(bazelPackage));
+                        }
                         var status = classpathInfo.addTarget(target);
                         if (!status.isOK()) {
                             buildPathProblems.add(status);
@@ -207,7 +217,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                     }
 
                     // compute the classpath
-                    var classpath = classpathInfo.compute();
+                    var classpath = classpathInfo.compute(targetsByPackage);
 
                     // remove old marker
                     deleteClasspathContainerProblems(bazelProject);
@@ -221,7 +231,6 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                     subMonitor.worked(1);
                 }
             }
-
             return classpathsByProject;
         } finally {
             if (progress != null) {
@@ -452,7 +461,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                 createProjectForElement(projectName, projectLocation, bazelPackage, monitor.slice(1));
 
                 // refresh the package info
-                bazelPackage.rediscoverBazelProject();
+                // bazelPackage.rediscoverBazelProject();
             }
 
             return bazelPackage.getBazelProject();

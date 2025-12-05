@@ -86,7 +86,7 @@ public class JobsBasedExecutionService implements BazelModelCommandExecutionServ
                     throw new CoreException(Status.error("Error executing command: " + e.getMessage(), e));
                 } finally {
                     try {
-                        refreshResources(resourcesToRefresh, monitor);
+                        //refreshResources(resourcesToRefresh, monitor);
                         monitor.done();
                     } finally {
                         pm.done();

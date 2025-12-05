@@ -652,7 +652,7 @@ public class SynchronizeProjectViewJob extends WorkspaceJob {
 
             // during synchronization resource changes may occur; however, they are triggered by the synchronization activities
             // therefore we suspend cache invalidation of the model due to resource changes
-            workspace.getModelManager().getResourceChangeProcessor().suspendInvalidationFor(workspace);
+            workspace.getModelManager().getResourceChangeProcessor().suspendInvalidationFor(workspace.getModel());
 
             // trigger loading of the project view
             projectView = workspace.getBazelProjectView();

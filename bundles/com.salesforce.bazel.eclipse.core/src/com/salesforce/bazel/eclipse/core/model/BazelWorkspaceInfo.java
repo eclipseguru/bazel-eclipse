@@ -14,6 +14,8 @@
 package com.salesforce.bazel.eclipse.core.model;
 
 import static com.salesforce.bazel.eclipse.core.BazelCoreSharedContstants.BAZEL_NATURE_ID;
+import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasOwnerPropertySetForLabel;
+import static com.salesforce.bazel.eclipse.core.model.BazelProject.hasWorkspaceRootPropertySetToLocation;
 import static java.lang.String.format;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Objects.requireNonNull;
@@ -25,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +57,7 @@ import com.salesforce.bazel.sdk.command.BazelInfoCommand;
 import com.salesforce.bazel.sdk.command.BazelModDumpRepoMappingCommand;
 import com.salesforce.bazel.sdk.command.BazelQueryForTargetProtoCommand;
 import com.salesforce.bazel.sdk.command.querylight.Target;
+import com.salesforce.bazel.sdk.model.BazelLabel;
 
 public final class BazelWorkspaceInfo extends BazelElementInfo {
 
@@ -115,6 +119,7 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
 
     private volatile Map<String, BazelRuleAttributes> externalRepositoryRuleByName;
 
+    private volatile Map<BazelLabel, IProject> projectByLabel = new HashMap<>();
     private BazelBinary bazelBinary;
 
     private Map<String, ExternalWorkspace> externalWorkspaceByRepoName;
@@ -310,6 +315,27 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
                     format(
                         "Unable to find project for Bazel workspace root '%s' in the Eclipse workspace. Please check the workspace setup!",
                         root)));
+    }
+
+    public IProject getProject(BazelLabel label) throws CoreException {
+        var result = projectByLabel.get(label);
+        if (result == null) {
+            LOG.debug("findProject " + label.getPackageName());
+            var workspaceRoot = bazelWorkspace.getLocation();
+            // we don't care about the actual project name - we look for the property
+            var projects = getEclipseWorkspaceRoot().getProjects();
+            for (IProject project : projects) {
+                if (project.isAccessible() // is open
+                        && project.hasNature(BAZEL_NATURE_ID) // is a Bazel project
+                        && hasWorkspaceRootPropertySetToLocation(project, workspaceRoot) // belongs to the workspace root
+                        && hasOwnerPropertySetForLabel(project, label) // represents the target
+                ) {
+                    put(label, project);
+                    return project;
+                }
+            }
+        }
+        return result;
     }
 
     public String getRelease() {
@@ -552,4 +578,9 @@ public final class BazelWorkspaceInfo extends BazelElementInfo {
                 .map(BazelRuleAttributes::new)
                 .collect(toMap(BazelRuleAttributes::getName, Function.identity())); // index by the "name" attribute
     }
+
+    public void put(BazelLabel label, IProject project) {
+        projectByLabel.put(label, project);
+    }
+
 }

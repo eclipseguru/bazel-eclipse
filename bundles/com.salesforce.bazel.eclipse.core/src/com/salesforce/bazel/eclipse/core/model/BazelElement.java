@@ -13,15 +13,15 @@
  */
 package com.salesforce.bazel.eclipse.core.model;
 
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
 
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.OperationCanceledException;
-import org.eclipse.core.runtime.Status;
 
 import com.salesforce.bazel.eclipse.core.model.cache.BazelElementInfoCache;
 import com.salesforce.bazel.sdk.model.BazelLabel;
@@ -129,24 +129,21 @@ public sealed abstract class BazelElement<I extends BazelElementInfo, P extends 
         if (info != null) {
             return info;
         }
-
         // ensure the parent is loaded
         if (hasParent()) {
             getParent().getInfo();
         }
-
-        // loads can be potentially expensive; we synchronize on the location
-        var location = getLocation();
-        var openJob = new BazelElementOpenJob<>(location != null ? location : IPath.ROOT, this, infoCache);
-        try {
-            return openJob.open();
-        } catch (InterruptedException e) {
-            throw new OperationCanceledException("Interrupted while opening element.");
-        } catch (CoreException e) {
-            // wrap to provide better context
-            throw new CoreException(
-                    Status.error(String.format("Error opening '%s': '%s'", location, e.getMessage()), e));
-        }
+        // store in cache
+        Supplier<I> supplier = () -> {
+            try {
+                return requireNonNull(
+                    createInfo(),
+                    () -> format("invalid implementation of #createInfo in %s; must not return null!", getClass()));
+            } catch (CoreException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        return (I) infoCache.putOrGetCached(this, supplier);
     }
 
     BazelElementInfoCache getInfoCache() {
