@@ -9,8 +9,8 @@
 	"bugs": "https://github.com/eclipseguru/bazel-eclipse/issues",
 	"preview": true,
 	"engines": {
-		"node": "^22.20.0",
-		"vscode": "^1.106.0"
+		"node": "^22.21.1",
+		"vscode": "^1.109.0"
 	},
 	"repository": {
 		"type": "git",
