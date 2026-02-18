@@ -139,13 +139,7 @@ public class IntellijAspects {
 
         // copy templates
         var templateOptions = getTemplateOptions(bazelVersion);
-        for (var name : List.of(
-            "java_info",
-            "scala_info",
-            "python_info",
-            "intellij_info_bundled",
-            "code_generator_info",
-            "cc_info")) {
+        for (var name : List.of("java_info", "scala_info", "python_info", "code_generator_info", "cc_info")) {
             writeTemplateToWorkspace(
                 targetDirectory,
                 name + ".bzl",
@@ -153,6 +147,12 @@ public class IntellijAspects {
                 name + ".template.bzl",
                 templateOptions);
         }
+        writeTemplateToWorkspace(
+            targetDirectory,
+            "intellij_info_bundled.bzl",
+            ASPECT_TEMPLATE_DIRECTORY,
+            "intellij_info.template.bzl",
+            templateOptions);
     }
 
     String getAspectsArchiveLocation() {
