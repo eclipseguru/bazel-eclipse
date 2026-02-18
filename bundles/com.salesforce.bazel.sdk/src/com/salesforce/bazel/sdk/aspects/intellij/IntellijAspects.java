@@ -139,36 +139,20 @@ public class IntellijAspects {
 
         // copy templates
         var templateOptions = getTemplateOptions(bazelVersion);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "java_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "java_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "python_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "python_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "intellij_info_bundled.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "intellij_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "code_generator_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "code_generator_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "cc_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "cc_info.template.bzl",
-            templateOptions);
+        for (var name : List.of(
+            "java_info",
+            "scala_info",
+            "python_info",
+            "intellij_info_bundled",
+            "code_generator_info",
+            "cc_info")) {
+            writeTemplateToWorkspace(
+                targetDirectory,
+                name + ".bzl",
+                ASPECT_TEMPLATE_DIRECTORY,
+                name + ".template.bzl",
+                templateOptions);
+        }
     }
 
     String getAspectsArchiveLocation() {
