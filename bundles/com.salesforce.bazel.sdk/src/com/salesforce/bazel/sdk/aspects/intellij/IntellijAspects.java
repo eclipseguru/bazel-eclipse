@@ -74,7 +74,7 @@ public class IntellijAspects {
 
     public static final String OUTPUT_GROUP_JAVA_RUNTIME_CLASSPATH = "runtime_classpath";
 
-    public static final String ASPECTS_VERSION = "3f0edc";
+    public static final String ASPECTS_VERSION = "87d40e";
     public static final Predicate<String> ASPECT_OUTPUT_FILE_PREDICATE = str -> str.endsWith(".intellij-info.txt");
 
     private static String getLanguageSuffix(LanguageClass language) {
@@ -139,35 +139,19 @@ public class IntellijAspects {
 
         // copy templates
         var templateOptions = getTemplateOptions(bazelVersion);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "java_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "java_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "python_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "python_info.template.bzl",
-            templateOptions);
+        for (var name : List.of("java_info", "scala_info", "python_info", "code_generator_info", "cc_info")) {
+            writeTemplateToWorkspace(
+                targetDirectory,
+                name + ".bzl",
+                ASPECT_TEMPLATE_DIRECTORY,
+                name + ".template.bzl",
+                templateOptions);
+        }
         writeTemplateToWorkspace(
             targetDirectory,
             "intellij_info_bundled.bzl",
             ASPECT_TEMPLATE_DIRECTORY,
             "intellij_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "code_generator_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "code_generator_info.template.bzl",
-            templateOptions);
-        writeTemplateToWorkspace(
-            targetDirectory,
-            "cc_info.bzl",
-            ASPECT_TEMPLATE_DIRECTORY,
-            "cc_info.template.bzl",
             templateOptions);
     }
 

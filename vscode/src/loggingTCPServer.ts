@@ -79,7 +79,6 @@ export function registerLSClient(): Promise<void> {
 
 async function registerPortWithLanguageServer(
 	port: number,
-	attempts = 0,
 	maxRetries = 50
 ): Promise<void> {
 	let error = null;
@@ -91,12 +90,13 @@ async function registerPortWithLanguageServer(
 					Commands.REGISTER_BAZEL_TCP_SERVER_PORT,
 					port
 				)
-				.then(() =>
-					BazelLanguageServerTerminal.trace(`port ${port} registered with BLS`)
-				);
+				.then(() => {
+					console.info(`register port ${port} with BLS (attempt ${i})`);
+					BazelLanguageServerTerminal.trace(`port ${port} registered with BLS`);
+				});
 		} catch (err) {
 			error = err;
-			console.error(`register port failed ${attempts} : ${err}`);
+			console.warn(`register port failed ${i} : ${err}`);
 			await setTimeout(i * 1000);
 		}
 	}

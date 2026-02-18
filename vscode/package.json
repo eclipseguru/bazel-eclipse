@@ -9,8 +9,8 @@
 	"bugs": "https://github.com/eclipseguru/bazel-eclipse/issues",
 	"preview": true,
 	"engines": {
-		"node": "^22.20.0",
-		"vscode": "^1.106.0"
+		"node": "^22.21.1",
+		"vscode": "^1.109.0"
 	},
 	"repository": {
 		"type": "git",
@@ -326,7 +326,7 @@
 		"vscode:prepublish": "run-s clean esbuild:base -- --minify",
 		"build": "run-s clean build:server esbuild:base",
 		"build:server": "node scripts/index.mjs build-or-download",
-		"clean": "npx rimraf out meta.json stats.html *.vsix test/result",
+		"clean": "npx rimraf out meta.json stats.html *.vsix test/result server",
 		"esbuild:base": "tsx build.ts",
 		"esbuild:watch": "npm run esbuild:base -- --sourcemap --watch",
 		"analyze": "npm run esbuild:base -- --minify --metafile --analyze && esbuild-visualizer --metadata ./meta.json --open",
@@ -336,6 +336,7 @@
 		"test:compile": "tsc -b ./test/tsconfig.json",
 		"test:lint": "eslint --ext .js,.ts,.tsx src",
 		"test:repo": "node scripts/index.mjs repo-check",
+		"test:bazel-example-works": "cd test/projects/small && bazel test //...",
 		"test:extension": "vscode-test",
 		"package": "run-s clean build vsce:package",
 		"vsce:package": "npx vsce package --no-dependencies"
