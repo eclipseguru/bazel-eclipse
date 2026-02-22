@@ -194,18 +194,39 @@ public class JavaAspectsInfo extends JavaClasspathJarLocationResolver {
                                 "Unable to compute target label for runtime jar '{}'. Please check if the rule producing the jar is adding the Target-Label to the jar manifest!",
                                 classJar);
                         }
-                        targetLabel = Label.create(format("@_unknown_jar_//:%s", sanitizePathForLabel(classJar.getRelativePath())));
-                    } else if (!targetLabel.isExternal()
-                            && !bazelWorkspace.getBazelPackage(new BazelLabel(targetLabel)).exists()) {
-                        // possibly an external jar produced within an external repo
-                        // see https://github.com/eclipseguru/bazel-eclipse/issues/34
-                        if (LOG.isDebugEnabled()) {
-                            LOG.debug(
-                                "The target '{}' of the runtime JAR file '{}' does not exist in the workspace.",
-                                targetLabel,
-                                classJar);
+                        targetLabel = Label.create(
+                            format("@_unknown_jar_//:%s", sanitizePathForLabel(classJar.getRelativePath())));
+                    } else if (!targetLabel.isExternal()) {
+                        // Use toArtifactLocation to determine if JAR is physically in external repository
+                        var artifactLocation = toArtifactLocation(localJar);
+
+                        if (artifactLocation.isExternal()) {
+                            // JAR is in external repository but has non-external target label
+                            // This indicates incorrect manifest (e.g., //3rdparty/java instead of @maven//:...)
+                            // See https://github.com/eclipseguru/bazel-eclipse/issues/48
+                            if (LOG.isWarnEnabled()) {
+                                LOG.warn(
+                                    "Manifest label mismatch: JAR '{}' is in external repository but has non-external target label '{}'. "
+                                            + "This indicates an incorrect manifest. The JAR will be indexed as unknown. "
+                                            + "Consider fixing the build configuration to write correct target labels.",
+                                    classJar,
+                                    targetLabel);
+                            }
+                            targetLabel = Label.create(
+                                format("@_unknown_jar_//:%s", sanitizePathForLabel(classJar.getRelativePath())));
+                        } else if (!bazelWorkspace.getBazelPackage(new BazelLabel(targetLabel)).exists()) {
+                            // Local JAR but package doesn't exist
+                            // possibly an external jar produced within an external repo
+                            // see https://github.com/eclipseguru/bazel-eclipse/issues/34
+                            if (LOG.isDebugEnabled()) {
+                                LOG.debug(
+                                    "The target '{}' of the runtime JAR file '{}' does not exist in the workspace.",
+                                    targetLabel,
+                                    classJar);
+                            }
+                            targetLabel = Label.create(
+                                format("@_unknown_jar_//:%s", sanitizePathForLabel(classJar.getRelativePath())));
                         }
-                        targetLabel = Label.create(format("@_unknown_jar_//:%s", sanitizePathForLabel(classJar.getRelativePath())));
                     }
 
                     var builder = LibraryArtifact.builder();
@@ -310,9 +331,18 @@ public class JavaAspectsInfo extends JavaClasspathJarLocationResolver {
                         localJarExecutionRootRelativePath));
         }
 
-        return ExecutionPathHelper.parse(
-            workspaceRoot,
-            BazelBuildSystemProvider.BAZEL,
-            fromPath(localJarExecutionRootRelativePath).toString());
+        var executionRootRelativePathString = fromPath(localJarExecutionRootRelativePath).toString();
+        var artifactLocation = ExecutionPathHelper
+                .parse(workspaceRoot, BazelBuildSystemProvider.BAZEL, executionRootRelativePathString);
+
+        // ExecutionPathHelper.parse() only detects external artifacts when the path starts with "external/"
+        // However, external JARs can also be in "bazel-out/<config>/bin/external/..." paths
+        // Fix the isExternal flag if the path contains "/external/" but wasn't detected
+        if (!artifactLocation.isExternal() && executionRootRelativePathString.contains("/external/")) {
+            // Path contains "/external/" but wasn't detected as external - correct this
+            return ArtifactLocation.Builder.copy(artifactLocation).setIsExternal(true).build();
+        }
+
+        return artifactLocation;
     }
 }
