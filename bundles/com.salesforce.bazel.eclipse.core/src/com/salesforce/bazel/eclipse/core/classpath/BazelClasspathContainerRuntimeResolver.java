@@ -243,6 +243,18 @@ public class BazelClasspathContainerRuntimeResolver
                 case IClasspathEntry.CPE_PROJECT: {
                     // projects need to be resolved properly so we have all the output folders and exported jars on the classpath
                     var sourceProject = workspaceRoot.getProject(e.getPath().segment(0));
+
+                    // Check for cycles BEFORE calling beginResolvingProject to avoid depth counter issues
+                    if (resolutionContext.processedProjects.contains(sourceProject)) {
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug(
+                                "Skipping already processed project '{}' in thread '{}' to avoid cycle",
+                                sourceProject.getName(),
+                                Thread.currentThread().getName());
+                        }
+                        break;
+                    }
+
                     if (resolutionContext.beginResolvingProjectIfNeverProcessedBefore(sourceProject)) {
                         try {
                             // only resolve and add the projects if it was never attempted before
@@ -252,10 +264,9 @@ public class BazelClasspathContainerRuntimeResolver
                             resolutionContext.endResolvingProject(sourceProject);
                         }
                     } else if (LOG.isDebugEnabled()) {
-                        // this should not happen in theory because Bazel is an acyclic graph as well as Eclipse doesn't like it but who knows...
                         LOG.debug(
-                            "Skipping recursive resolution attempt for project '{}' in thread '{}' ({})",
-                            sourceProject,
+                            "Skipping already processed project '{}' in thread '{}' to avoid cycle",
+                            sourceProject.getName(),
                             Thread.currentThread().getName());
                     }
                     break;
@@ -275,7 +286,72 @@ public class BazelClasspathContainerRuntimeResolver
             }
         }
 
+        // Add the project's own output folders to the runtime classpath
+        // This ensures that Eclipse-compiled classes (including test classes) are available at runtime
+        addProjectOutputFolders(project, resolutionContext);
+
+        // Note: Test framework dependencies (like JUnit) are now pre-cached in the container during
+        // the container build phase (see BazelClasspathManager.saveAndSetContainer), so we no longer
+        // need to resolve them at runtime. This significantly improves performance for large projects.
+
         return true;
+    }
+
+    /**
+     * Checks if the given project is a test project based on naming conventions.
+     * 
+     * Note: This method is kept for potential future use, but test framework dependencies are now handled during
+     * container creation rather than runtime resolution.
+     *
+     * @param project
+     *            the project to check
+     * @return <code>true</code> if this appears to be a test project, <code>false</code> otherwise
+     */
+    @SuppressWarnings("unused")
+    private boolean isTestProject(IJavaProject project) {
+        var projectName = project.getProject().getName();
+        // Check if project name contains "test" or ends with "-test"
+        return projectName.contains("test") || projectName.contains("Test");
+    }
+
+    /**
+     * Adds the project's own output folders to the runtime classpath. This includes both the regular output folder
+     * (eclipse-bin) and the test output folder (eclipse-testbin).
+     *
+     * @param project
+     *            the project whose output folders should be added
+     * @param resolutionContext
+     *            the resolution context
+     * @throws CoreException
+     */
+    private void addProjectOutputFolders(IJavaProject project, ContainerResolutionContext resolutionContext)
+            throws CoreException {
+        // Add the project's default output location (main compiled classes)
+        var defaultOutputLocation = project.getOutputLocation();
+        if (defaultOutputLocation != null) {
+            var outputEntry = JavaRuntime.newArchiveRuntimeClasspathEntry(defaultOutputLocation);
+            outputEntry.setClasspathProperty(IRuntimeClasspathEntry.USER_CLASSES);
+            resolutionContext.add(outputEntry);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Added default output location to runtime classpath: {}", defaultOutputLocation);
+            }
+        }
+
+        // For Bazel projects, also add the test output folder explicitly
+        var bazelProject = BazelCore.create(project.getProject());
+        if (bazelProject != null) {
+            var fileSystemMapper = bazelProject.getBazelWorkspace().getBazelProjectFileSystemMapper();
+            var testOutputFolder = fileSystemMapper.getOutputFolderForTests(bazelProject);
+            // Test output folder might be different from the default output location
+            if (!testOutputFolder.getFullPath().equals(defaultOutputLocation)) {
+                var testOutputEntry = JavaRuntime.newArchiveRuntimeClasspathEntry(testOutputFolder.getFullPath());
+                testOutputEntry.setClasspathProperty(IRuntimeClasspathEntry.USER_CLASSES);
+                resolutionContext.add(testOutputEntry);
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Added test output folder to runtime classpath: {}", testOutputFolder.getFullPath());
+                }
+            }
+        }
     }
 
     @Override
@@ -300,15 +376,21 @@ public class BazelClasspathContainerRuntimeResolver
         // this method can be entered recursively; luckily only within the same thread
         // therefore we use a ThreadLocal LinkedHashSet to keep track of recursive attempts
         var resolutionContext = currentThreadResolutionContet.get();
+
+        // CRITICAL: Check if this is top-level BEFORE calling beginResolvingProject
+        // This ensures ThreadLocal cleanup happens correctly
+        var isTopLevelResolution = resolutionContext.currentDepth == 0;
+
+        // Check for recursive resolution BEFORE calling beginResolvingProject
+        // to avoid depth counter mismatch
         if (!resolutionContext.beginResolvingProjectIfNeverProcessedBefore(project.getProject())) {
             LOG.warn(
-                "Detected recursive resolution attempt for project '{}' in thread '{}' ({})",
+                "Detected recursive resolution attempt for project '{}' in thread '{}' - skipping to avoid cycle",
                 project.getProject().getName(),
                 Thread.currentThread().getName());
             return new IRuntimeClasspathEntry[0];
         }
 
-        var isTopLevelResolution = resolutionContext.currentDepth == 0;
         var stopWatch = StopWatch.startNewStopWatch();
         try {
             // try the saved container

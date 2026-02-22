@@ -239,8 +239,8 @@ public class BazelClasspathManager {
      * @param monitor
      * @throws CoreException
      */
-    public void patchClasspathContainer(BazelProject bazelProject, CompileAndRuntimeClasspath classpath, IProgressMonitor progress)
-            throws CoreException {
+    public void patchClasspathContainer(BazelProject bazelProject, CompileAndRuntimeClasspath classpath,
+            IProgressMonitor progress) throws CoreException {
         var monitor = SubMonitor.convert(progress);
         try {
             monitor.beginTask("Patchig classpath: " + bazelProject.getName(), 2);
@@ -347,7 +347,14 @@ public class BazelClasspathManager {
                 : new Path(BazelCoreSharedContstants.CLASSPATH_CONTAINER_ID);
 
         var sourceAttachmentProperties = getSourceAttachmentProperties(javaProject.getProject());
-        var transativeClasspath = classpath.additionalRuntimeEntries().stream().map(ClasspathEntry::build).collect(toList());
+        var transativeClasspath =
+                classpath.additionalRuntimeEntries().stream().map(ClasspathEntry::build).collect(toList());
+
+        // For test projects, include test framework dependencies (like JUnit) in the container
+        // This caches them upfront, avoiding runtime resolution overhead
+        if (isTestProject(javaProject)) {
+            addTestFrameworkDependenciesToContainer(javaProject, transativeClasspath);
+        }
 
         var container = new BazelClasspathContainer(
                 path,
@@ -373,6 +380,75 @@ public class BazelClasspathManager {
             new BazelClasspathContainerSaveHelper().writeContainer(container, is);
         } catch (IOException ex) {
             throw new CoreException(Status.error("Can't save classpath container state for " + project.getName(), ex));
+        }
+    }
+
+    /**
+     * Checks if the given project is a test project based on naming conventions.
+     *
+     * @param project
+     *            the project to check
+     * @return <code>true</code> if this appears to be a test project, <code>false</code> otherwise
+     */
+    private boolean isTestProject(IJavaProject project) {
+        var projectName = project.getProject().getName();
+        return projectName.contains("test") || projectName.contains("Test");
+    }
+
+    /**
+     * Adds test framework dependencies (like JUnit) to the container's runtime classpath. This pre-caches test
+     * dependencies in the container, avoiding runtime resolution overhead.
+     *
+     * @param project
+     *            the test project
+     * @param transativeClasspath
+     *            the mutable list of runtime classpath entries to augment
+     */
+    private void addTestFrameworkDependenciesToContainer(IJavaProject project,
+            List<IClasspathEntry> transativeClasspath) {
+        try {
+            // Collect existing paths to avoid duplicates
+            var existingPaths = new LinkedHashSet<IPath>();
+            for (IClasspathEntry entry : transativeClasspath) {
+                existingPaths.add(entry.getPath());
+            }
+
+            // Only process direct classpath entries (containers like JUnit)
+            // Skip project references to avoid circular dependencies
+            var rawClasspath = project.getRawClasspath();
+            for (IClasspathEntry entry : rawClasspath) {
+                if (entry.getEntryKind() == IClasspathEntry.CPE_CONTAINER) {
+                    // Skip the Bazel container itself to avoid duplication
+                    if (BazelCoreSharedContstants.CLASSPATH_CONTAINER_ID.equals(entry.getPath().toString())) {
+                        continue;
+                    }
+
+                    // Get container contents (e.g., JUnit, JRE)
+                    var container = JavaCore.getClasspathContainer(entry.getPath(), project);
+                    if (container != null) {
+                        for (IClasspathEntry containerEntry : container.getClasspathEntries()) {
+                            if (containerEntry.getEntryKind() == IClasspathEntry.CPE_LIBRARY) {
+                                var libPath = containerEntry.getPath();
+                                if (!existingPaths.contains(libPath)) {
+                                    // Add test framework JAR to runtime classpath
+                                    transativeClasspath.add(containerEntry);
+                                    existingPaths.add(libPath);
+
+                                    if (LOG.isDebugEnabled()) {
+                                        LOG.debug("Added test framework to container: {}", libPath);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn(
+                "Failed to add test framework dependencies to container for project '{}': {}",
+                project.getProject().getName(),
+                e.getMessage());
+            // Don't fail container creation if this step fails
         }
     }
 
