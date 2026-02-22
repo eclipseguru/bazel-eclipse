@@ -139,6 +139,14 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
             var shardsToBuild = createShards(activeTargetsPerProject, workspace);
             monitor.setWorkRemaining(5 * shardsToBuild.size());
 
+            Set<BazelPackage> packages = activeTargetsPerProject.values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .map(BazelTarget::getBazelPackage)
+                    .filter(bp -> bp != null)
+                    .collect(Collectors.toSet());
+            var targetsByPackage =
+                    workspace.queryForTargetsWithDependencies(workspace, packages, workspace.getCommandExecutor());
             // run the build per shard
             var currentShardCount = 0;
             for (Map<BazelProject, Collection<BazelTarget>> shard : shardsToBuild) {
@@ -200,6 +208,10 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                         activeTargetsPerProject.get(bazelProject),
                         () -> format("programming error: not targets for project: %s", bazelProject));
                     for (BazelTarget target : projectTargets) {
+                        var bazelPackage = target.getBazelPackage();
+                        if (bazelPackage != null) {
+                            bazelPackage.setTargets(targetsByPackage.get(bazelPackage));
+                        }
                         var status = classpathInfo.addTarget(target);
                         if (!status.isOK()) {
                             buildPathProblems.add(status);
@@ -207,7 +219,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                     }
 
                     // compute the classpath
-                    var classpath = classpathInfo.compute();
+                    var classpath = classpathInfo.compute(targetsByPackage);
 
                     // remove old marker
                     deleteClasspathContainerProblems(bazelProject);
@@ -314,10 +326,8 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
     protected List<BazelProject> doProvisionProjects(Collection<BazelTarget> targets, TracingSubMonitor monitor)
             throws CoreException {
         // initialize the list of allowed java like rules
-        var javaLikeRulesValue = getFileSystemMapper().getBazelWorkspace()
-                .getBazelProjectView()
-                .targetProvisioningSettings()
-                .get(JAVA_LIKE_RULES);
+        var workspace = getFileSystemMapper().getBazelWorkspace();
+        var javaLikeRulesValue = workspace.getBazelProjectView().targetProvisioningSettings().get(JAVA_LIKE_RULES);
         if (javaLikeRulesValue != null) {
             Stream.of(javaLikeRulesValue.split(","))
                     .map(String::trim)
@@ -331,11 +341,13 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
 
         monitor.setWorkRemaining(targetsByPackage.size() * 3);
 
+        var targetsByPackageWithDependencies = workspace
+                .queryForTargetsWithDependencies(workspace, targetsByPackage.keySet(), workspace.getCommandExecutor());
+
         var result = new ArrayList<BazelProject>();
         for (Entry<BazelPackage, List<BazelTarget>> entry : targetsByPackage.entrySet()) {
             var bazelPackage = entry.getKey();
             var packageTargets = entry.getValue();
-
             monitor.subTask(bazelPackage.getName());
 
             // skip the root package (not supported)
@@ -346,7 +358,7 @@ public class ProjectPerPackageProvisioningStrategy extends BaseProvisioningStrat
                         "The root package was skipped during sync because it's not supported by the project-per-package strategy. Consider excluding it in the .bazelproject file."));
                 continue;
             }
-
+            bazelPackage.setTargets(targetsByPackageWithDependencies.get(bazelPackage));
             // create the project for the package
             var project = provisionPackageProject(bazelPackage, monitor.slice(1));
 

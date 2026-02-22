@@ -28,6 +28,7 @@ import com.google.idea.blaze.base.model.primitives.TargetExpression;
 import com.google.idea.blaze.base.model.primitives.TargetName;
 import com.salesforce.bazel.eclipse.core.classpath.BazelClasspathScope;
 import com.salesforce.bazel.eclipse.core.classpath.CompileAndRuntimeClasspath;
+import com.salesforce.bazel.eclipse.core.model.BazelPackage;
 import com.salesforce.bazel.eclipse.core.model.BazelProject;
 import com.salesforce.bazel.eclipse.core.model.BazelTarget;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
@@ -158,6 +159,7 @@ public class BuildfileDrivenProvisioningStrategy extends ProjectPerPackageProvis
 
         monitor.beginTask("Provisioning projects", packages.size() * 3);
         var result = new ArrayList<BazelProject>();
+        var bazelPackages = new ArrayList<BazelPackage>();
         for (Path packagePath : packages) {
             var bazelPackage = workspace.getBazelPackage(IPath.fromPath(packagePath));
 
@@ -171,6 +173,13 @@ public class BuildfileDrivenProvisioningStrategy extends ProjectPerPackageProvis
                             STRATEGY_NAME)));
                 continue;
             }
+            bazelPackages.add(bazelPackage);
+        }
+        var targetsByPackage =
+                workspace.queryForTargetsWithDependencies(workspace, bazelPackages, workspace.getCommandExecutor());
+
+        for (BazelPackage bazelPackage : bazelPackages) {
+            bazelPackage.setTargets(targetsByPackage.get(bazelPackage));
 
             // get the top-level macro calls
             var topLevelMacroCalls = bazelPackage.getBazelBuildFile().getTopLevelCalls();
