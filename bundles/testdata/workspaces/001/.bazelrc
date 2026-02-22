@@ -1,0 +1,2 @@
+# bazelmod is enabled by default in bazel 7, but we are not ready yet
+common --noenable_bzlmod

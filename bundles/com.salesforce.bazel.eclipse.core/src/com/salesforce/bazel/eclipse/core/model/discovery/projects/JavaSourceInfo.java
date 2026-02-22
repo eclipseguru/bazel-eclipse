@@ -51,12 +51,16 @@ import org.eclipse.jdt.core.compiler.InvalidInputException;
 import com.salesforce.bazel.eclipse.core.model.BazelPackage;
 import com.salesforce.bazel.eclipse.core.model.BazelTarget;
 import com.salesforce.bazel.eclipse.core.model.BazelWorkspace;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Source information used by {@link JavaProjectInfo} to analyze the <code>srcs</code> information in order to identify
  * root directories or split packages and recommend a layout.
  */
 public class JavaSourceInfo {
+
+    private static final Logger LOG = LoggerFactory.getLogger(JavaSourceInfo.class);
 
     private static final IPath NOT_FOLLOWING_JAVA_PACKAGE_STRUCTURE =
             IPath.forPosix("_not_following_java_package_structure_");
@@ -228,6 +232,10 @@ public class JavaSourceInfo {
             }
         }
 
+        // Scan BUILD directories and infer package paths for directories without direct Java files
+        // This must happen before split package checks to ensure complete index
+        scanBuildDirectoriesForPackageInfo(sourceEntriesByParentFolder, sourceEntriesBySourceRoot);
+
         // rescue missing packages
         if (sourceEntriesBySourceRoot.containsKey(MISSING_PACKAGE)) {
             // we use the MISSING_PACKAGE when a package could not be calculated
@@ -325,7 +333,9 @@ public class JavaSourceInfo {
                 var entryParentLocation = bazelPackageLocation.append(potentialSourceRoot).toPath();
                 try {
                     // when there are declared Java files, expect them to match
-                    var declaredJavaFilesInFolder = entry.getValue().size();
+                    // Exclude synthetic entries as they don't represent actual files on disk
+                    var declaredJavaFilesInFolder =
+                            (int) entry.getValue().stream().filter(e -> !(e instanceof SyntheticPackageEntry)).count();
                     if (declaredJavaFilesInFolder > 0) {
                         var foundJavaFiles = findJavaFilesNoneRecursive(entryParentLocation);
                         var javaFilesInParent = foundJavaFiles.size();
@@ -367,7 +377,10 @@ public class JavaSourceInfo {
 
                 var potentialSourceRootPath = bazelPackageLocation.append(potentialSourceRoot).toPath();
                 try {
-                    var registeredFiles = ((List<?>) potentialSourceRootAndSourceEntries.getValue()).size();
+                    // Exclude synthetic entries when counting registered files
+                    var registeredFiles = (int) ((List<?>) potentialSourceRootAndSourceEntries.getValue()).stream()
+                            .filter(e -> !(e instanceof SyntheticPackageEntry))
+                            .count();
                     var foundJavaFiles = findJavaFilesRecursive(potentialSourceRootPath);
                     var foundJavaFilesInSourceRoot = foundJavaFiles.size();
                     if ((registeredFiles != foundJavaFilesInSourceRoot)
@@ -396,6 +409,21 @@ public class JavaSourceInfo {
                 sourceFilesWithoutCommonRoot =
                         (List<JavaSourceEntry>) sourceEntriesBySourceRoot.remove(NOT_FOLLOWING_JAVA_PACKAGE_STRUCTURE);
             }
+
+            // Remove source roots that only contain synthetic entries
+            // These are virtual entries for BUILD directories without actual Java files
+            // and should not appear in the final Eclipse project configuration
+            sourceEntriesBySourceRoot.entrySet().removeIf(entry -> {
+                if (!(entry.getValue() instanceof List<?> entries)) {
+                    return false; // Keep GlobEntry
+                }
+                // Remove if all entries are synthetic
+                boolean allSynthetic = entries.stream().allMatch(e -> e instanceof SyntheticPackageEntry);
+                if (allSynthetic) {
+                    LOG.debug("Removing source root '{}' as it only contains synthetic entries", entry.getKey());
+                }
+                return allSynthetic;
+            });
 
             // create source directories
             sourceDirectoriesWithFilesOrGlobs = sourceEntriesBySourceRoot;
@@ -475,6 +503,273 @@ public class JavaSourceInfo {
         detectedPackagePathsByFileEntryPathParent.put(fileEntry.getPathParent(), packagePath);
 
         return packagePath;
+    }
+
+    /**
+     * Scans BUILD file directories and infers package paths for directories without direct Java files.
+     * <p>
+     * This method finds all BUILD files in the workspace, checks if their directories lack direct Java files, and
+     * creates synthetic entries to establish proper package structure.
+     * </p>
+     *
+     * @param sourceEntriesByParentFolder
+     *            mapping from directories to file entry lists
+     * @param sourceEntriesBySourceRoot
+     *            mapping from source roots to entries
+     */
+    private void scanBuildDirectoriesForPackageInfo(
+            Map<IPath, List<? super JavaSourceEntry>> sourceEntriesByParentFolder,
+            Map<IPath, Object> sourceEntriesBySourceRoot) throws CoreException {
+
+        // 1. Find all BUILD files
+        List<IPath> buildDirectories = findBuildFileDirectories();
+        LOG.debug("Found {} BUILD files in workspace", buildDirectories.size());
+
+        // 2. Check each BUILD directory
+        for (IPath buildDir : buildDirectories) {
+            // 2.1 Skip if directory already has entries (has Java files)
+            if (sourceEntriesByParentFolder.containsKey(buildDir)) {
+                continue;
+            }
+
+            // 2.2 Check if directory has direct Java files
+            Path buildDirPath = bazelPackageLocation.append(buildDir).toPath();
+            try {
+                List<Path> javaFiles = findJavaFilesNoneRecursive(buildDirPath);
+                if (!javaFiles.isEmpty()) {
+                    continue; // Has files but not processed, might be in glob exclude
+                }
+            } catch (IOException e) {
+                LOG.debug("Failed to scan BUILD directory '{}': {}", buildDir, e.getMessage());
+                continue;
+            }
+
+            // 2.3 Infer package path
+            IPath inferredPackagePath = inferPackagePathForBuildDirectory(buildDir);
+            if (inferredPackagePath == null) {
+                LOG.debug("Unable to infer package for BUILD directory '{}', skipping", buildDir);
+                continue;
+            }
+
+            // 2.4 Create synthetic entry and add to indexes
+            createSyntheticEntryForBuildDirectory(
+                buildDir,
+                inferredPackagePath,
+                sourceEntriesByParentFolder,
+                sourceEntriesBySourceRoot);
+        }
+    }
+
+    /**
+     * Finds all directories containing BUILD or BUILD.bazel files.
+     *
+     * @return list of BUILD file directories (relative to bazelPackageLocation)
+     */
+    private List<IPath> findBuildFileDirectories() throws CoreException {
+        List<IPath> buildDirs = new ArrayList<>();
+        Path packageRoot = bazelPackageLocation.toPath();
+
+        try {
+            walkFileTree(packageRoot, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    String fileName = file.getFileName().toString();
+                    if ("BUILD".equals(fileName) || "BUILD.bazel".equals(fileName)) {
+                        Path relativeDir = packageRoot.relativize(file.getParent());
+                        buildDirs.add(IPath.fromPath(relativeDir));
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new CoreException(Status.error("Error scanning for BUILD files", e));
+        }
+
+        return buildDirs;
+    }
+
+    /**
+     * Infers package path for a BUILD directory using two strategies: 1. Path pattern matching (primary) 2. Child
+     * directory reverse inference (fallback)
+     *
+     * @param buildDirectory
+     *            BUILD file directory relative path
+     * @return inferred package path, or null if unable to infer
+     */
+    private IPath inferPackagePathForBuildDirectory(IPath buildDirectory) {
+        // Strategy A: Path pattern inference
+        IPath pathBasedPackage = inferFromPathPattern(buildDirectory);
+        if (pathBasedPackage != null) {
+            LOG.debug(
+                "Inferred package '{}' for BUILD directory '{}' using path pattern",
+                pathBasedPackage,
+                buildDirectory);
+            return pathBasedPackage;
+        }
+
+        // Strategy B: Child directory reverse inference
+        IPath childBasedPackage = inferFromChildDirectories(buildDirectory);
+        if (childBasedPackage != null) {
+            LOG.debug(
+                "Inferred package '{}' for BUILD directory '{}' from child directories",
+                childBasedPackage,
+                buildDirectory);
+            return childBasedPackage;
+        }
+
+        return null; // Unable to infer
+    }
+
+    /**
+     * Infers package path based on standard Java source root patterns.
+     *
+     * @param buildDirectory
+     *            the BUILD directory path
+     * @return inferred package path, or null if no pattern matches
+     */
+    private IPath inferFromPathPattern(IPath buildDirectory) {
+        String[] sourceRootPatterns = {
+                "src/main/java",
+                "src/test/java",
+                "java",
+                "src/main/resources",
+                "src/test/resources",
+                "src" };
+
+        String pathString = buildDirectory.toString();
+
+        for (String pattern : sourceRootPatterns) {
+            int index = pathString.indexOf(pattern);
+            if (index >= 0) {
+                int sourceRootEnd = index + pattern.length();
+
+                if (sourceRootEnd < pathString.length()) {
+                    // Has remaining path, that's the package path
+                    String packagePath = pathString.substring(sourceRootEnd);
+                    packagePath = packagePath.replaceAll("^/+|/+$", "");
+
+                    if (!packagePath.isEmpty()) {
+                        return IPath.forPosix(packagePath);
+                    }
+                }
+
+                // Exactly at source root position
+                return IPath.EMPTY;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Infers package path by reverse engineering from child directory's known package.
+     *
+     * @param buildDirectory
+     *            the BUILD directory path
+     * @return inferred package path, or null if unable to infer
+     */
+    private IPath inferFromChildDirectories(IPath buildDirectory) {
+        // Look for cached package paths in child directories
+        for (Map.Entry<IPath, IPath> entry : detectedPackagePathsByFileEntryPathParent.entrySet()) {
+            IPath childDir = entry.getKey();
+            IPath childPackage = entry.getValue();
+
+            // Check if it's a direct child directory
+            if (buildDirectory.isPrefixOf(childDir) && childDir.segmentCount() == buildDirectory.segmentCount() + 1) {
+
+                // Parent package = child package with last segment removed
+                if (childPackage.segmentCount() > 0) {
+                    return childPackage.removeLastSegments(1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Creates a synthetic entry for BUILD directory and adds it to indexes.
+     *
+     * @param buildDirectory
+     *            BUILD directory path
+     * @param inferredPackagePath
+     *            inferred package path
+     * @param sourceEntriesByParentFolder
+     *            directory index
+     * @param sourceEntriesBySourceRoot
+     *            source root index
+     */
+    @SuppressWarnings("unchecked")
+    private void createSyntheticEntryForBuildDirectory(IPath buildDirectory, IPath inferredPackagePath,
+            Map<IPath, List<? super JavaSourceEntry>> sourceEntriesByParentFolder,
+            Map<IPath, Object> sourceEntriesBySourceRoot) {
+
+        // 1. Calculate source root directory
+        IPath sourceRoot = inferSourceRootFromBuildDirectory(buildDirectory);
+
+        // 2. Create synthetic entry
+        SyntheticPackageEntry syntheticEntry =
+                new SyntheticPackageEntry(buildDirectory, inferredPackagePath, sourceRoot);
+
+        // 3. Cache to package path mapping
+        detectedPackagePathsByFileEntryPathParent.put(buildDirectory, inferredPackagePath);
+
+        // 4. Add to parent directory index
+        sourceEntriesByParentFolder.putIfAbsent(buildDirectory, new ArrayList<>());
+        sourceEntriesByParentFolder.get(buildDirectory).add(syntheticEntry);
+
+        // 5. Add to source root index
+        if (!sourceEntriesBySourceRoot.containsKey(sourceRoot)) {
+            List<JavaSourceEntry> list = new ArrayList<>();
+            list.add(syntheticEntry);
+            sourceEntriesBySourceRoot.put(sourceRoot, list);
+        } else {
+            Object existing = sourceEntriesBySourceRoot.get(sourceRoot);
+            if (existing instanceof List) {
+                List<JavaSourceEntry> list = (List<JavaSourceEntry>) existing;
+                list.add(syntheticEntry);
+            }
+        }
+
+        LOG.debug(
+            "Created synthetic entry for BUILD directory '{}' with package '{}' and source root '{}'",
+            buildDirectory,
+            inferredPackagePath,
+            sourceRoot);
+    }
+
+    /**
+     * Infers source root directory from BUILD directory path.
+     *
+     * @param buildDirectory
+     *            the BUILD directory path
+     * @return inferred source root path
+     */
+    private IPath inferSourceRootFromBuildDirectory(IPath buildDirectory) {
+        String[] sourceRootPatterns = {
+                "src/main/java",
+                "src/test/java",
+                "java",
+                "src/main/resources",
+                "src/test/resources",
+                "src" };
+
+        String pathString = buildDirectory.toString();
+
+        for (String pattern : sourceRootPatterns) {
+            int index = pathString.indexOf(pattern);
+            if (index >= 0) {
+                int sourceRootEnd = index + pattern.length();
+                return IPath.forPosix(pathString.substring(0, sourceRootEnd));
+            }
+        }
+
+        // Cannot identify, use first segment as source root
+        if (buildDirectory.segmentCount() > 0) {
+            return IPath.forPosix(buildDirectory.segment(0));
+        }
+
+        return buildDirectory;
     }
 
     /**
@@ -759,7 +1054,9 @@ public class JavaSourceInfo {
 
     private void reportSplitPackagesProblem(MultiStatus result, Path rootDirectory,
             List<? super JavaSourceEntry> declaredEntries, List<Path> foundJavaFiles) {
+        // Filter out synthetic entries as they don't represent actual files on disk
         SortedSet<Path> registeredFilesSet = declaredEntries.stream()
+                .filter(o -> !(o instanceof SyntheticPackageEntry))
                 .map(o -> ((JavaSourceEntry) o).getLocation().toPath())
                 .collect(toCollection(TreeSet::new));
         SortedSet<Path> foundFilesSet = new TreeSet<>(foundJavaFiles);
@@ -791,8 +1088,10 @@ public class JavaSourceInfo {
         }
         if (fileOrGlob instanceof List<?> listOfEntries) {
             // the case is save assuming no programming mistakes in this class
+            // filter out synthetic entries as they don't have settings in the srcs map
             return listOfEntries.stream()
                     .map(JavaSourceEntry.class::cast)
+                    .filter(e -> !(e instanceof SyntheticPackageEntry))
                     .map(this::getEntrySettings)
                     .anyMatch(EntrySettings::nowarn);
         }
@@ -800,7 +1099,47 @@ public class JavaSourceInfo {
     }
 
     public boolean shouldDisableOptionalCompileProblemsForSourceFilesWithoutCommonRoot() {
-        return getSourceFilesWithoutCommonRoot().stream().anyMatch(e -> getEntrySettings(e).nowarn());
+        return getSourceFilesWithoutCommonRoot().stream()
+                .filter(e -> !(e instanceof SyntheticPackageEntry))
+                .anyMatch(e -> getEntrySettings(e).nowarn());
 
+    }
+
+    /**
+     * Represents a synthetic package entry for BUILD directories without direct Java files.
+     * <p>
+     * This virtual entry is used to establish proper package path information for directories that contain BUILD files
+     * but no direct Java sources, enabling correct source root detection and preventing false positive split package
+     * warnings.
+     * </p>
+     */
+    private static class SyntheticPackageEntry extends JavaSourceEntry {
+        private final IPath inferredSourceRoot;
+
+        public SyntheticPackageEntry(IPath buildDirectory, IPath packagePath, IPath sourceRoot) {
+            // Create virtual file path for marker purposes
+            super(buildDirectory.append("_synthetic_package_.java"), IPath.EMPTY);
+            this.detectedPackagePath = packagePath;
+            this.inferredSourceRoot = sourceRoot;
+        }
+
+        @Override
+        public IPath getPotentialSourceDirectoryRoot() {
+            return inferredSourceRoot;
+        }
+
+        @Override
+        public boolean isExternalOrGenerated() {
+            return false; // Treat as normal source
+        }
+
+        @Override
+        public String toString() {
+            return format(
+                "SyntheticPackageEntry[dir=%s, package=%s, sourceRoot=%s]",
+                getPathParent(),
+                detectedPackagePath,
+                inferredSourceRoot);
+        }
     }
 }
