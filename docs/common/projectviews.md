@@ -158,6 +158,7 @@ The syntax of each entry is `key=value`, where `key` and `value` are expected st
 * `classpath_depth` A integer indicating the depth of source targets runtime dependencies pulled in to the project model during sync (default is `0`, which pulls in all transitive dependencies in the graph).
 	* Providing a value greater then 0 will filter transitive dependencies and provide a partial classpath to the project model.
 	* Note: While all required compile-time dependencies are added regardless, there may be edge cases with the Eclipse compiler which may result in compile errors.
+* `detect_split_packages` (possible values: `true` (default) and `false`; when set to `false`, the IDE will not report warnings for folders containing more Java files than declared in a particular target's `srcs`. This is useful for monorepo setups where multiple Bazel targets share the same source directory hierarchy. Note: this setting has no effect on the `project-per-package` strategy, which never performs split-package detection.)
 
 ### `target_discovery_settings`
 

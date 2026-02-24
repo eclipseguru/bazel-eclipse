@@ -127,6 +127,7 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
     private static final String JRE_SYSTEM_LIBRARY_RUNTIME = "current_java_runtime";
     private static final String JRE_SYSTEM_LIBRARY_EE = "execution_environment";
     private static final String CLASSPATH_DEPTH = "classpath_depth";
+    private static final String DETECT_SPLIT_PACKAGES = "detect_split_packages";
 
     private static final String JAVAC_OPT_ADD_OPENS = "--add-opens";
     private static final String JAVAC_OPT_ADD_EXPORTS = "--add-exports";
@@ -1390,7 +1391,13 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
      * Calls and returns {@link JavaProjectInfo#analyzeProjectRecommendations(boolean, IProgressMonitor)} with
      * recommended defaults.
      * <p>
-     * Subclasses may override to customize defaults
+     * Subclasses may override to customize defaults.
+     * </p>
+     * <p>
+     * The <code>detect_split_packages</code> setting in <code>target_provisioning_settings</code> can be used to
+     * control whether split-package detection is enabled. When set to <code>false</code>, folders containing more
+     * Java files than declared for a particular target will not be reported as a problem. The default is
+     * <code>true</code>.
      * </p>
      *
      * @param javaInfo
@@ -1403,7 +1410,12 @@ public abstract class BaseProvisioningStrategy implements TargetProvisioningStra
      */
     protected IStatus getProjectRecommendations(JavaProjectInfo javaInfo, IProgressMonitor monitor)
             throws CoreException {
-        return javaInfo.analyzeProjectRecommendations(true, monitor);
+        var detectSplitPackages = Boolean.parseBoolean(
+            getFileSystemMapper().getBazelWorkspace()
+                .getBazelProjectView()
+                .targetProvisioningSettings()
+                .getOrDefault(DETECT_SPLIT_PACKAGES, "true"));
+        return javaInfo.analyzeProjectRecommendations(detectSplitPackages, monitor);
     }
 
     protected String getTargetProvisioningSetting(BazelElement<?, ?> bazelElement, String key, String defaultValue)
