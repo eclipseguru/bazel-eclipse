@@ -10,7 +10,7 @@
 	"preview": true,
 	"engines": {
 		"node": "^22.20.0",
-		"vscode": "^1.106.0"
+		"vscode": "^1.105.0"
 	},
 	"repository": {
 		"type": "git",
@@ -40,7 +40,6 @@
 		"javaExtensions": [
 			"./server/org.eclipse.equinox.event.jar",
 			"./server/com.github.ben-manes.caffeine.jar",
-			"./server/org.apache.velocity.engine-core.jar",
 			"./server/org.jsr-305.jar",
 			"./server/org.fusesource.jansi.jar",
 			"./server/com.google.protobuf.jar",
